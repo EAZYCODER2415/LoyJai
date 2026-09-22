@@ -1,4 +1,4 @@
-# Loy Krathong Online - React Refactoring Summary
+# Loy Krathong Online - A Digital River of Wishes
 
 ## Overview
 Successfully refactored the Loy Krathong Online application from vanilla HTML/CSS/JS to a modern React application using Vite. The refactored application maintains all original functionality while improving code organization, maintainability, and establishing a foundation for future growth.
