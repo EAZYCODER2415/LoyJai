@@ -103,7 +103,7 @@ const Lantern = ({ lantern, onFadeComplete, onLanternClick }) => {
       }}
     >
       <img
-        src="https://pngimg.com/d/sky_lantern_PNG26.png"
+        src={`${import.meta.env.BASE_URL}images/lantern.svg`}
         alt="lantern"
         style={{ width: '100%', height: '100%', objectPosition: 'center' }}
       />

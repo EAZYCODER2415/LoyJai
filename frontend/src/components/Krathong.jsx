@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-const KRATHONG_IMAGE = 'https://png.pngtree.com/png-clipart/20221130/original/pngtree-loy-krathong-fesival-clipart-transparent-background-png-image_8745179.png';
+const KRATHONG_IMAGE = `${import.meta.env.BASE_URL}images/krathong.svg`;
 
 const getRiverSpawnY = () => window.innerHeight * (0.48 + Math.random() * 0.2);
 const getPerspectiveScale = (y) => Math.max(0.78, Math.min(1, 0.78 + (y / window.innerHeight) * 0.22));
