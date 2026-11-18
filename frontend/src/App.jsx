@@ -4,7 +4,7 @@ import LanternForm from './components/LanternForm.jsx';
 import Krathong from './components/Krathong.jsx';
 import KrathongForm from './components/KrathongForm.jsx';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import backgroundTrack from "/dist/images/เพลงลอยกระทง  รำวงลอยกระทง ดงเดม  วนเพญเดอนสบสอง  แสงจนทร กระทง และรอยยมของผคน.mp3"
+const backgroundTrack = `${import.meta.env.BASE_URL}assets/loy-krathong.mp3`;
 
 const copy = {
   en: {
@@ -317,7 +317,7 @@ function App() {
           </div>
         </div>
         <div className="bridge bridge-foreground" aria-hidden="true">
-          <img src="/dist/images/bridge.png" alt="" />
+          <img src={`${import.meta.env.BASE_URL}images/bridge.png`} alt="" />
         </div>
         <header className="app-header">
           <div className="eyebrow">{labels.eyebrow}</div>

@@ -115,7 +115,6 @@ div.background {
     z-index: 0;
     overflow: hidden;
     background-color: #092b39;
-    background-image: linear-gradient(180deg, rgba(4, 24, 38, 0.2) 0%, rgba(4, 24, 38, 0.58) 100%), url('dist/images/river_bg.png');
     background-position: center;
     background-size: cover;
 }
@@ -133,7 +132,6 @@ div.top {
     left: 0;
     bottom: auto;
     height: 68%;
-    background-image: url('dist/images/skyline.png');
     background-position: center top;
     background-repeat: no-repeat;
     background-size: max(1440px, 100vw) auto;

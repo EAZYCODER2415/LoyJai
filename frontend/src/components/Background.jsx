@@ -1,11 +1,19 @@
 import React from 'react';
 
 const Background = () => {
-  const imageBase = '/dist/images/';
+  const imageBase = `${import.meta.env.BASE_URL}images/`;
 
   return (
-    <div className="background">
-      <div className="top">
+    <div
+      className="background"
+      style={{
+        backgroundImage: `linear-gradient(180deg, rgba(4, 24, 38, 0.2) 0%, rgba(4, 24, 38, 0.58) 100%), url("${imageBase}river_bg.png")`
+      }}
+    >
+      <div
+        className="top"
+        style={{ backgroundImage: `url("${imageBase}skyline.png")` }}
+      >
         <div className="moon">
           <img alt="moon" src={`${imageBase}moon.png`} />
         </div>
