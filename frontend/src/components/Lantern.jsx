@@ -1,6 +1,34 @@
 import React, { useEffect, useRef } from 'react';
 
-const Lantern = ({ lantern, onFadeComplete, onLanternClick }) => {
+const LanternSprite = ({ glow = 'gold', style = 'traditional' }) => {
+  const flame = glow === 'pink' ? '#ff9cba' : glow === 'white' ? '#fff6cc' : '#ffc75a';
+  return (
+    <svg viewBox="0 0 180 230" role="img" aria-label="Illuminated sky lantern">
+      <defs>
+        <radialGradient id="lanternGlow" cx="50%" cy="55%" r="55%">
+          <stop offset="0" stopColor={flame} stopOpacity=".95" />
+          <stop offset=".7" stopColor={flame} stopOpacity=".48" />
+          <stop offset="1" stopColor={flame} stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="lanternPaper" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={glow === 'pink' ? '#ffb4a8' : glow === 'white' ? '#fff8df' : '#ffaf45'} />
+          <stop offset="1" stopColor={glow === 'pink' ? '#dd6f87' : glow === 'white' ? '#e8c96e' : '#ed7429'} />
+        </linearGradient>
+      </defs>
+      <ellipse cx="90" cy="118" rx="78" ry="104" fill="url(#lanternGlow)" />
+      {style === 'crystal' ? (
+        <path d="M90 18L142 62l-18 124H56L38 62z" fill="rgba(255,255,255,.22)" stroke={flame} strokeWidth="4" />
+      ) : (
+        <path d="M90 18c35 0 52 32 48 70l-12 98H54L42 88c-4-38 13-70 48-70z" fill="url(#lanternPaper)" stroke="#ffe4a0" strokeWidth="3" />
+      )}
+      <path d="M54 186h72l-8 18H62z" fill="#5d3d31" />
+      <rect x="78" y="166" width="24" height="21" rx="3" fill="#f7dd73" />
+      <ellipse cx="90" cy="172" rx="8" ry="13" fill="#ff9a35" />
+    </svg>
+  );
+};
+
+const Lantern = ({ lantern, onFadeComplete, onLanternClick, onShare }) => {
   const lanternRef = useRef(null);
 
   useEffect(() => {
@@ -82,17 +110,22 @@ const Lantern = ({ lantern, onFadeComplete, onLanternClick }) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       onLanternClick(lantern);
+      if (onShare) onShare(lantern);
     }
   };
 
   return (
     <div
-      className={`lantern ${lantern.phase === 'looping' ? 'is-looping' : 'is-large'}`}
+      className={`lantern lantern-${lantern.customization?.style || 'traditional'} lantern-glow-${lantern.customization?.glow || 'gold'} ${lantern.phase === 'looping' ? 'is-looping' : 'is-large'}`}
       ref={lanternRef}
       tabIndex="0"
       aria-label={`Lantern by ${lantern.name}`}
       role={lantern.phase === 'looping' ? 'button' : undefined}
-      onClick={() => lantern.phase === 'looping' && onLanternClick(lantern)}
+      onClick={() => {
+        if (lantern.phase !== 'looping') return;
+        onLanternClick(lantern);
+        if (onShare) onShare(lantern);
+      }}
       onKeyDown={handleKeyDown}
       style={{
         left: `${lantern.xPosition ?? 50}%`,
@@ -102,11 +135,12 @@ const Lantern = ({ lantern, onFadeComplete, onLanternClick }) => {
         transform: 'translateX(-50%)'
       }}
     >
-      <img
-        src={`${import.meta.env.BASE_URL}images/lantern.svg`}
-        alt="lantern"
-        style={{ width: '100%', height: '100%', objectPosition: 'center' }}
-      />
+      <div className="lantern-sprite-art" style={{ width: '100%', height: '100%' }} aria-hidden="true">
+        <LanternSprite
+          glow={lantern.customization?.glow}
+          style={lantern.customization?.style}
+        />
+      </div>
       <div className="wish">
         <h2>{lantern.name}</h2>
         <p>{lantern.wish}</p>
