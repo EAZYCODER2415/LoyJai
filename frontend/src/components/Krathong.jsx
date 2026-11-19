@@ -1,11 +1,48 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-const KRATHONG_IMAGE = `${import.meta.env.BASE_URL}images/krathong.svg`;
+const KrathongSprite = ({ accent = '#f49aaa', candle = '#f5be57', base = 'banana' }) => (
+  <svg viewBox="0 0 240 190" role="img" aria-label="Illuminated Loy Krathong">
+    <defs>
+      <linearGradient id="krathongLeaf" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#27ad78" />
+        <stop offset="1" stopColor="#08745c" />
+      </linearGradient>
+      <filter id="krathongGlow"><feGaussianBlur stdDeviation="4" /></filter>
+    </defs>
+    <ellipse cx="120" cy="150" rx="82" fill="#25a66f" opacity=".25" filter="url(#krathongGlow)" />
+    {base === 'lotus' ? (
+      <g fill={accent} opacity=".92">
+        {[0, 45, 90, 135, 180, 225, 270, 315].map((angle) => (
+          <ellipse key={angle} cx="120" cy="86" rx="19" ry="48" transform={`rotate(${angle} 120 120)`} />
+        ))}
+      </g>
+    ) : (
+      <g fill="url(#krathongLeaf)">
+        <path d="M38 138L65 72l27 76zM72 148l27-92 21 92zM120 150l22-92 28 92zM155 148l24-76 26 66zM120 150l-82-12 82-39 82 39z" />
+        <path d="M20 140l100 38 100-38-100-31z" />
+      </g>
+    )}
+    <rect x="94" y="132" width="52" height="42" rx="4" fill="#087b64" />
+    <g>
+      <rect x="88" y="74" width="12" height="68" rx="5" fill={candle} />
+      <rect x="140" y="74" width="12" height="68" rx="5" fill="#f7f1d7" />
+      <ellipse cx="94" cy="72" rx="8" ry="13" fill="#ff8a32" />
+      <circle cx="94" cy="67" r="6" fill="#ffd66b" />
+      <g stroke="#dfe6df" strokeWidth="4" strokeLinecap="round">
+        <path d="M120 68v74M128 75v67" />
+      </g>
+    </g>
+    <g fill="#fff" stroke={accent} strokeWidth="2">
+      <circle cx="72" cy="130" r="12" /><circle cx="168" cy="130" r="12" />
+      <circle cx="120" cy="118" r="10" />
+    </g>
+  </svg>
+);
 
 const getRiverSpawnY = () => window.innerHeight * (0.48 + Math.random() * 0.2);
 const getPerspectiveScale = (y) => Math.max(0.78, Math.min(1, 0.78 + (y / window.innerHeight) * 0.22));
 
-const Krathong = ({ krathong, onComplete }) => {
+const Krathong = ({ krathong, onComplete, onShare }) => {
   const krathongRef = useRef(null);
   const [showDetails, setShowDetails] = useState(false);
 
@@ -88,7 +125,7 @@ const Krathong = ({ krathong, onComplete }) => {
   }, [krathong.id, krathong.phase, onComplete]);
 
   const toggleDetails = () => {
-    setShowDetails(previous => !previous);
+    if (onShare) onShare(krathong);
   };
 
   const handleKeyDown = (event) => {
@@ -101,15 +138,33 @@ const Krathong = ({ krathong, onComplete }) => {
   return (
     <div
       ref={krathongRef}
-      className={`krathong ${krathong.phase === 'new' ? 'is-new' : 'is-looping'}${showDetails ? ' is-details-visible' : ''}`}
+      className={`krathong krathong-base-${krathong.customization?.base || 'banana'} krathong-incense-${krathong.customization?.incense || 'classic'} ${krathong.phase === 'new' ? 'is-new' : 'is-looping'}${showDetails ? ' is-details-visible' : ''}`}
       role="button"
       aria-label={`Krathong by ${krathong.name}`}
       tabIndex="0"
       aria-expanded={showDetails}
       onClick={toggleDetails}
       onKeyDown={handleKeyDown}
+      style={{
+        '--candle-color': krathong.customization?.candle === 'pink'
+          ? '#f49aaa'
+          : krathong.customization?.candle === 'white'
+            ? '#f7f3df'
+            : '#f5be57',
+        '--accent-color': krathong.customization?.accent === 'gold'
+          ? '#f5be57'
+          : krathong.customization?.accent === 'white'
+            ? '#f7f3df'
+            : '#f49aaa'
+      }}
     >
-      <img src={KRATHONG_IMAGE} alt="Loy Krathong floral raft" />
+      <div className="krathong-sprite-art" aria-hidden="true">
+        <KrathongSprite
+          base={krathong.customization?.base}
+          candle={krathong.customization?.candle === 'pink' ? '#f49aaa' : krathong.customization?.candle === 'white' ? '#f7f3df' : '#f5be57'}
+          accent={krathong.customization?.accent === 'gold' ? '#f5be57' : krathong.customization?.accent === 'white' ? '#f7f3df' : '#f49aaa'}
+        />
+      </div>
       <div className="krathong-wish">
         <h2>{krathong.name}</h2>
         <p>{krathong.wish}</p>
