@@ -28,7 +28,7 @@ const LanternSprite = ({ glow = 'gold', style = 'traditional' }) => {
   );
 };
 
-const Lantern = ({ lantern, onFadeComplete, onLanternClick, onShare }) => {
+const Lantern = ({ lantern, onFadeComplete, onLanternClick }) => {
   const lanternRef = useRef(null);
 
   useEffect(() => {
@@ -79,7 +79,7 @@ const Lantern = ({ lantern, onFadeComplete, onLanternClick, onShare }) => {
         return;
       }
 
-      currentTop -= isLooping ? 0.35 : 0.8;
+      currentTop -= isLooping ? 0.0875 : 0.2;
       lanternRef.current.style.top = `${currentTop}px`;
 
       if (!isLooping && currentTop < -100) {
@@ -105,26 +105,21 @@ const Lantern = ({ lantern, onFadeComplete, onLanternClick, onShare }) => {
   }, [lantern, onFadeComplete]);
 
   const handleKeyDown = (event) => {
-    if (lantern.phase !== 'looping') return;
-
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       onLanternClick(lantern);
-      if (onShare) onShare(lantern);
     }
   };
 
   return (
     <div
-      className={`lantern lantern-${lantern.customization?.style || 'traditional'} lantern-glow-${lantern.customization?.glow || 'gold'} ${lantern.phase === 'looping' ? 'is-looping' : 'is-large'}`}
+      className={`lantern lantern-${lantern.customization?.style || 'traditional'} lantern-glow-${lantern.customization?.glow || 'gold'} ${lantern.phase === 'looping' ? 'is-looping' : 'is-large'}${lantern.releaseSize === 'small' ? ' is-small-release' : ''}`}
       ref={lanternRef}
       tabIndex="0"
       aria-label={`Lantern by ${lantern.name}`}
-      role={lantern.phase === 'looping' ? 'button' : undefined}
+      role="button"
       onClick={() => {
-        if (lantern.phase !== 'looping') return;
         onLanternClick(lantern);
-        if (onShare) onShare(lantern);
       }}
       onKeyDown={handleKeyDown}
       style={{
@@ -140,10 +135,6 @@ const Lantern = ({ lantern, onFadeComplete, onLanternClick, onShare }) => {
           glow={lantern.customization?.glow}
           style={lantern.customization?.style}
         />
-      </div>
-      <div className="wish">
-        <h2>{lantern.name}</h2>
-        <p>{lantern.wish}</p>
       </div>
     </div>
   );

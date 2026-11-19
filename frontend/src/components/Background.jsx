@@ -12,19 +12,8 @@ const Background = () => {
       </div>
       <div
         className="bottom"
-        style={{ background: 'transparent' }}
+        style={{ backgroundImage: `url("${imageBase}river_bg.png")` }}
       />
-      <div className="decor" aria-hidden="true">
-        <img className="decor-lotus lotus-one" src={`${imageBase}lotus1.png`} alt="" />
-        <img className="decor-cattail cattail-one" src={`${imageBase}cattail.png`} alt="" />
-        <img className="decor-lotus lotus-two" src={`${imageBase}lotus1.png`} alt="" />
-        <img className="decor-cattail cattail-two" src={`${imageBase}cattail.png`} alt="" />
-        <img className="decor-lotus lotus-three" src={`${imageBase}lotus1.png`} alt="" />
-        <img className="decor-cattail cattail-three" src={`${imageBase}cattail.png`} alt="" />
-        <img className="decor-lotus lotus-four" src={`${imageBase}lotus1.png`} alt="" />
-        <img className="decor-cattail cattail-four" src={`${imageBase}cattail.png`} alt="" />
-        <img className="decor-lotus lotus-five" src={`${imageBase}lotus1.png`} alt="" />
-      </div>
     </div>
   );
 };

@@ -3,6 +3,8 @@ import Lantern from './components/Lantern.jsx';
 import LanternForm from './components/LanternForm.jsx';
 import Krathong from './components/Krathong.jsx';
 import KrathongForm from './components/KrathongForm.jsx';
+import Popup from './components/Popup.jsx';
+import Celebration from './components/Celebration.jsx';
 import { useState, useEffect, useCallback, useRef } from 'react';
 const backgroundTrack = `${import.meta.env.BASE_URL}assets/loy-krathong.mp3`;
 
@@ -156,7 +158,7 @@ const copy = {
     music: '音乐',
     sounds: '触觉反馈',
     musicVolume: '音乐音量',
-    hapticIntensity: '触觉强度',
+    hapticIntensity: '音效音量',
     profileDescription: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
     closeModal: '关闭窗口',
     shareWish: '分享我的愿望',
@@ -183,20 +185,43 @@ function App() {
   const [krathongCount, setKrathongCount] = useState(0);
   const [showKrathongForm, setShowKrathongForm] = useState(false);
   const [krathongFormData, setKrathongFormData] = useState({ name: '', wish: '', form: 'krathong', base: 'banana', candle: 'gold', incense: 'classic', accent: 'pink' });
-  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('soundEnabled') !== 'false');
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    const savedPreference = localStorage.getItem('soundEnabled');
+    return savedPreference === null || savedPreference === 'true';
+  });
   const [musicVolume, setMusicVolume] = useState(() => Number(localStorage.getItem('musicVolume') ?? 70));
   const [soundsEnabled, setsoundsEnabled] = useState(() => localStorage.getItem('soundsEnabled') !== 'false');
-  const [hapticIntensity, setHapticIntensity] = useState(() => Number(localStorage.getItem('hapticIntensity') ?? 50));
+  const [hapticIntensity, setHapticIntensity] = useState(() => Number(localStorage.getItem('hapticIntensity') ?? 75));
   const [showSettings, setShowSettings] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [shareWish, setShareWish] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [language, setLanguage] = useState(() => localStorage.getItem('language') || 'en');
   const [showLanguages, setShowLanguages] = useState(false);
+  const [celebrations, setCelebrations] = useState([]);
+  const nextCelebrationId = useRef(0);
   const languageRef = useRef(null);
   const labels = copy[language];
   const selectedLanguage = languageOptions.find(option => option.code === language) || languageOptions[0];
   const bgAudioRef = useRef(null);
+  const fxAudioContextRef = useRef(null);
+
+  const getBackgroundAudio = () => {
+    if (!bgAudioRef.current) {
+      bgAudioRef.current = new Audio(backgroundTrack);
+    }
+    bgAudioRef.current.loop = true;
+    bgAudioRef.current.volume = musicVolume / 100;
+    return bgAudioRef.current;
+  };
+
+  const playBackgroundMusic = (audio) => {
+    audio.play().catch(error => {
+      if (error.name !== 'NotAllowedError') {
+        console.error('Background music could not be played:', error);
+      }
+    });
+  };
 
   useEffect(() => {
     localStorage.setItem('soundEnabled', String(soundEnabled));
@@ -206,6 +231,30 @@ function App() {
     localStorage.setItem('musicVolume', String(musicVolume));
     if (bgAudioRef.current) bgAudioRef.current.volume = musicVolume / 100;
   }, [musicVolume]);
+
+  useEffect(() => {
+    if (!soundEnabled) {
+      bgAudioRef.current?.pause();
+      bgAudioRef.current = null;
+      return undefined;
+    }
+
+    const audio = getBackgroundAudio();
+
+    const startPlayback = () => {
+      playBackgroundMusic(audio);
+    };
+
+    document.addEventListener('pointerdown', startPlayback, { once: true });
+    document.addEventListener('keydown', startPlayback, { once: true });
+    startPlayback();
+
+    return () => {
+      document.removeEventListener('pointerdown', startPlayback);
+      document.removeEventListener('keydown', startPlayback);
+      audio.pause();
+    };
+  }, [soundEnabled]);
 
   useEffect(() => {
     localStorage.setItem('soundsEnabled', String(soundsEnabled));
@@ -243,29 +292,96 @@ function App() {
   const toggleSound = () => {
     const nextValue = !soundEnabled;
     setSoundEnabled(nextValue);
-    if (nextValue && 'AudioContext' in window) {
-      if (!bgAudioRef.current) {
-        // Initialize the audio instance only once
-        bgAudioRef.current = new Audio(backgroundTrack);
-        bgAudioRef.current.loop = true;
-        bgAudioRef.current.volume = musicVolume / 100;
-      }
-    bgAudioRef.current.play().catch(err => console.log("Playback blocked:", err));
-      const audioContext = new AudioContext();
+    if (nextValue) {
+      playBackgroundMusic(getBackgroundAudio());
+    } else {
+      bgAudioRef.current?.pause();
+    }
+  };
+
+  const playButtonSound = (event) => {
+    const target = event.target instanceof Element
+      ? event.target.closest('button, input[type="submit"]')
+      : null;
+    const fxVolume = Number.isFinite(hapticIntensity)
+      ? Math.max(0, Math.min(100, hapticIntensity))
+      : 0;
+    if (!target || target.disabled || !soundsEnabled || fxVolume === 0) return;
+
+    const AudioContextConstructor = window.AudioContext;
+    if (!AudioContextConstructor) return;
+
+    const audioContext = fxAudioContextRef.current || new AudioContextConstructor();
+    fxAudioContextRef.current = audioContext;
+
+    const playTone = () => {
+      const startTime = audioContext.currentTime;
       const oscillator = audioContext.createOscillator();
       const gain = audioContext.createGain();
-      oscillator.frequency.value = 660;
-      gain.gain.setValueAtTime(0.05, audioContext.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.16);
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(620, startTime);
+      oscillator.frequency.exponentialRampToValueAtTime(420, startTime + 0.08);
+      gain.gain.setValueAtTime((fxVolume / 100) * 0.06, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.09);
       oscillator.connect(gain).connect(audioContext.destination);
-      oscillator.start();
-      oscillator.stop(audioContext.currentTime + 0.16);
-    } else {
-      if (bgAudioRef.current) {
-        bgAudioRef.current.pause();
-        bgAudioRef.current = null;
-      }
+      oscillator.start(startTime);
+      oscillator.stop(startTime + 0.1);
+    };
+
+    if (audioContext.state === 'suspended') {
+      audioContext.resume().then(playTone).catch(error => {
+        console.error('Button sound could not be played:', error);
+      });
+      return;
     }
+    playTone();
+  };
+
+  const triggerCelebration = () => {
+    const id = ++nextCelebrationId.current;
+    setCelebrations(previous => [...previous.slice(-2), id]);
+
+    const fxVolume = Number.isFinite(hapticIntensity)
+      ? Math.max(0, Math.min(100, hapticIntensity))
+      : 0;
+    if (!soundsEnabled || fxVolume === 0 || !window.AudioContext) return;
+
+    const audioContext = fxAudioContextRef.current || new window.AudioContext();
+    fxAudioContextRef.current = audioContext;
+
+    const playFirework = () => {
+      const startTime = audioContext.currentTime;
+      [880, 660, 990].forEach((frequency, index) => {
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        const noteStart = startTime + index * 0.12;
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(frequency, noteStart);
+        oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.48, noteStart + 0.22);
+        gain.gain.setValueAtTime((fxVolume / 100) * 0.075, noteStart);
+        gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + 0.24);
+        oscillator.connect(gain).connect(audioContext.destination);
+        oscillator.start(noteStart);
+        oscillator.stop(noteStart + 0.25);
+      });
+    };
+
+    if (audioContext.state === 'suspended') {
+      audioContext.resume().then(playFirework).catch(error => {
+        console.error('Celebration sound could not be played:', error);
+      });
+      return;
+    }
+    playFirework();
+  };
+
+  const handleCelebrationComplete = useCallback((id) => {
+    setCelebrations(previous => previous.filter(item => item !== id));
+  }, []);
+
+  const handleFestivalItemClick = (item) => {
+    setShareWish(item);
+    triggerCelebration();
   };
 
   const handleFadeComplete = useCallback((id) => {
@@ -334,6 +450,7 @@ function App() {
         style: customization.style || 'traditional',
         glow: customization.glow || 'gold'
       },
+      releaseSize: lanternCount === 0 ? 'large' : 'small',
       topOff: Math.round(window.innerHeight * 0.54),
       xPosition: 50,
       phase: 'large',
@@ -345,6 +462,7 @@ function App() {
     setShowForm(false);
     setFormData({ name: '', wish: '', form: 'lantern', style: 'traditional', glow: 'gold' });
     setShareWish(newLantern);
+    triggerCelebration();
   };
 
   const handleToggleForm = () => {
@@ -384,6 +502,7 @@ function App() {
       customization,
       phase: 'new'
     });
+    triggerCelebration();
   };
 
   const festivalItems = [
@@ -400,7 +519,7 @@ function App() {
           key={`krathong-${item.id}`}
           krathong={item}
           onComplete={handleKrathongComplete}
-          onShare={setShareWish}
+          onShare={handleFestivalItemClick}
         />
       );
     }
@@ -410,8 +529,7 @@ function App() {
         key={`lantern-${item.id}`}
         lantern={item}
         onFadeComplete={handleFadeComplete}
-        onLanternClick={setShareWish}
-        onShare={setShareWish}
+        onLanternClick={handleFestivalItemClick}
       />
     );
   };
@@ -466,7 +584,14 @@ function App() {
   return (
     <>
       <Background />
-      <main className="app-container">
+      {celebrations.map(id => (
+        <Celebration
+          key={id}
+          id={id}
+          onComplete={handleCelebrationComplete}
+        />
+      ))}
+      <main className="app-container" onClickCapture={playButtonSound}>
         <header className="app-header">
           <div className="top-vignette">
             <div className="wish-counter">
@@ -552,6 +677,9 @@ function App() {
         </div>
 
         <div className="ui-controls">
+          <div className="bridge" aria-hidden="true">
+            <img src={`${import.meta.env.BASE_URL}images/bridge.png`} alt="" />
+          </div>
           <div className="start-buttons">
             <button
               onClick={handleToggleForm}
@@ -570,9 +698,8 @@ function App() {
           </div>
         </div>
 
-        {showForm && (
-          <div className="lantern-form-overlay" onClick={handleToggleForm}>
-            <div className="lantern-form" onClick={e => e.stopPropagation()}>
+        <Popup show={showForm} onClose={handleToggleForm} className="lantern-form-overlay">
+            <div className="lantern-form">
               <LanternForm
                 showForm={showForm}
                 onToggleForm={handleToggleForm}
@@ -583,12 +710,10 @@ function App() {
                 language={language}
               />
             </div>
-          </div>
-        )}
+        </Popup>
 
-        {showKrathongForm && (
-          <div className="lantern-form-overlay" onClick={handleToggleKrathongForm}>
-            <div className="lantern-form" onClick={event => event.stopPropagation()}>
+        <Popup show={showKrathongForm} onClose={handleToggleKrathongForm} className="lantern-form-overlay">
+            <div className="lantern-form">
               <KrathongForm
                 formData={krathongFormData}
                 onFormChange={setKrathongFormData}
@@ -598,17 +723,15 @@ function App() {
                 language={language}
               />
             </div>
-          </div>
-        )}
+        </Popup>
 
-        {shareWish && (
-          <div className="lantern-form-overlay share-overlay" onClick={() => setShareWish(null)}>
+        <Popup show={Boolean(shareWish)} onClose={() => setShareWish(null)} className="lantern-form-overlay share-overlay">
+          {shareWish && (
             <section
               className="share-wish-card"
               role="dialog"
               aria-modal="true"
               aria-labelledby="share-wish-title"
-              onClick={event => event.stopPropagation()}
             >
               <button
                 type="button"
@@ -632,17 +755,15 @@ function App() {
                 </button>
               </div>
             </section>
-          </div>
-        )}
+          )}
+        </Popup>
 
-        {showSettings && (
-          <div className="lantern-form-overlay" onClick={() => setShowSettings(false)}>
+        <Popup show={showSettings} onClose={() => setShowSettings(false)} className="lantern-form-overlay">
             <section
               className="settings-modal"
               role="dialog"
               aria-modal="true"
               aria-labelledby="settings-title"
-              onClick={event => event.stopPropagation()}
             >
               <div className="modal-heading">
                 <h2 id="settings-title">{labels.settings}</h2>
@@ -691,17 +812,14 @@ function App() {
                 />
               </div>
             </section>
-          </div>
-        )}
+        </Popup>
 
-        {showProfile && (
-          <div className="lantern-form-overlay" onClick={() => setShowProfile(false)}>
+        <Popup show={showProfile} onClose={() => setShowProfile(false)} className="lantern-form-overlay">
             <section
               className="profile-modal"
               role="dialog"
               aria-modal="true"
               aria-labelledby="profile-name"
-              onClick={event => event.stopPropagation()}
             >
               <button
                 className="profile-close"
@@ -715,8 +833,7 @@ function App() {
               <h2 id="profile-name">@th4mez_.adv</h2>
               <p>{labels.profileDescription}</p>
             </section>
-          </div>
-        )}
+        </Popup>
       </main>
     </>
   );

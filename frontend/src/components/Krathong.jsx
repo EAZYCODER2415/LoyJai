@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 const KrathongSprite = ({ accent = '#f49aaa', candle = '#f5be57', base = 'banana' }) => (
   <svg viewBox="0 0 240 190" role="img" aria-label="Illuminated Loy Krathong">
@@ -44,7 +44,6 @@ const getPerspectiveScale = (y) => Math.max(0.78, Math.min(1, 0.78 + (y / window
 
 const Krathong = ({ krathong, onComplete, onShare }) => {
   const krathongRef = useRef(null);
-  const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
     const element = krathongRef.current;
@@ -71,17 +70,17 @@ const Krathong = ({ krathong, onComplete, onShare }) => {
       const frameScale = (now - previousTime) / (1000 / 60);
       previousTime = now;
 
-      if (isNew && elapsed >= 1500) startedGlide = true;
+      if (isNew && elapsed >= 6000) startedGlide = true;
       if (isNew && !startedGlide) {
-        const lift = Math.min(elapsed / 1500, 1) * 42;
+        const lift = Math.min(elapsed / 6000, 1) * 42;
         const y = baseY - lift;
         element.style.top = `${y}px`;
         element.style.transform = `translate(-50%, -50%) scale(${getPerspectiveScale(y)})`;
       } else {
-        currentX += ((0.45 * frameScale) / window.innerWidth) * 100;
+        currentX += ((0.1125 * frameScale) / window.innerWidth) * 100;
         const x = currentX;
-        const glideElapsed = isNew ? elapsed - 1500 : elapsed;
-        const y = (isNew ? baseY - 42 : baseY) + Math.sin(glideElapsed / 280) * 9;
+        const glideElapsed = isNew ? elapsed - 6000 : elapsed;
+        const y = (isNew ? baseY - 42 : baseY) + Math.sin(glideElapsed / 1120) * 9;
         element.style.left = `${x}%`;
         element.style.top = `${y}px`;
         element.style.transform = `translate(-50%, -50%) scale(${getPerspectiveScale(y)})`;
@@ -124,26 +123,25 @@ const Krathong = ({ krathong, onComplete, onShare }) => {
     };
   }, [krathong.id, krathong.phase, onComplete]);
 
-  const toggleDetails = () => {
+  const openWish = () => {
     if (onShare) onShare(krathong);
   };
 
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      toggleDetails();
+      openWish();
     }
   };
 
   return (
     <div
       ref={krathongRef}
-      className={`krathong krathong-base-${krathong.customization?.base || 'banana'} krathong-incense-${krathong.customization?.incense || 'classic'} ${krathong.phase === 'new' ? 'is-new' : 'is-looping'}${showDetails ? ' is-details-visible' : ''}`}
+      className={`krathong krathong-base-${krathong.customization?.base || 'banana'} krathong-incense-${krathong.customization?.incense || 'classic'} ${krathong.phase === 'new' ? 'is-new' : 'is-looping'}`}
       role="button"
       aria-label={`Krathong by ${krathong.name}`}
       tabIndex="0"
-      aria-expanded={showDetails}
-      onClick={toggleDetails}
+      onClick={openWish}
       onKeyDown={handleKeyDown}
       style={{
         '--candle-color': krathong.customization?.candle === 'pink'
@@ -164,10 +162,6 @@ const Krathong = ({ krathong, onComplete, onShare }) => {
           candle={krathong.customization?.candle === 'pink' ? '#f49aaa' : krathong.customization?.candle === 'white' ? '#f7f3df' : '#f5be57'}
           accent={krathong.customization?.accent === 'gold' ? '#f5be57' : krathong.customization?.accent === 'white' ? '#f7f3df' : '#f49aaa'}
         />
-      </div>
-      <div className="krathong-wish">
-        <h2>{krathong.name}</h2>
-        <p>{krathong.wish}</p>
       </div>
     </div>
   );
