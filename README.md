@@ -1,157 +1,57 @@
-# Loy Krathong Online - A Digital River of Wishes
+# Loy Jai (ลอยใจ) — Wishes Across Lands (ลอยความหวังข้ามแดน)
 
-## Overview
-Successfully refactored the Loy Krathong Online application from vanilla HTML/CSS/JS to a modern React application using Vite. The refactored application maintains all original functionality while improving code organization, maintainability, and establishing a foundation for future growth.
+> **One river. Every generation. Release a wish in ten seconds.**
 
-## Files Created
+**Loy Jai (`ลอยใจ`)** is a calm, frictionless digital river and night-sky experience built for Loy Krathong—allowing people across distances and generations to step-by-step craft and release a krathong or lantern, watch wishes drift alongside others, and share a warm gift-card link with family and friends.
 
-### Project Configuration
-- `package.json` - Project dependencies and scripts
-- `vite.config.js` - Vite configuration with React plugin
+---
 
-### Source Code Structure
-```
-src/
-├── main.jsx              - React entry point
-├── App.jsx               - Main application component
-├── components/
-│   ├── Background.jsx    - Sky, moon, bridge, and decor
-│   ├── Lantern.jsx       - Animated lanterns with wish display
-│   └── LanternForm.jsx   - Wish submission form
-└── styles/
-    └── main.css          - Migrated and optimized CSS
-```
+## Project Overview
 
-### Key Improvements
+### Problem & Solution
+* **The Problem:** Younger generations studying or working away from home often miss quiet family traditions, while older generations (55+) can feel left behind by noisy, text-heavy festival apps or complex onboarding.
+* **The Solution:** A single-action web experience with no login or app download required, where users can build a krathong or lantern step-by-step (supporting cultural literacy and personalization) and send a wish floating across the sky or river.
 
-#### 1. Component-Based Architecture
-- Separated concerns into reusable components
-- Background handles static layout elements
-- Lantern manages individual lantern animation and display
-- LanternForm handles form submission and validation
+### Target Personas
+1. **Primary Bridge — The "Sender" (Ages 18–35):** Students living abroad, young professionals, and travelers who want to release a wish quickly and share a personal link in family LINE or WhatsApp chats.
+2. **Secondary User — The "Elder" (Ages 55+):** Parents and grandparents using LINE/WhatsApp on phones or tablets who benefit from simple controls, large touch targets, clear Thai/English/Chinese support, no heavy WebGL2 requirements, and transparent creator trust.
 
-#### 2. State Management
-- React useState hooks manage:
-  - Lantern count and array
-  - Form visibility state
-  - Form input values (name, wish)
-- LocalStorage persistence via useEffect hooks
-- Proper cleanup of animation frames to prevent memory leaks
+### Core Features
+* **Step-by-Step Krathong & Lantern Builder:** Interactive crafting flow across base, flower/decor, and wish details to encourage cultural meaning and personalization.
+* **Shared Wish Pool & Live Stats:** Real-time stats and floating lanterns/krathongs backed by PostgreSQL so visitors immediately experience a shared river and sky.
+* **Gift-Card Shareable Links (`?wish=<id>` / `/w/<wish_id>`):** Shareable links with ready-to-send captions and Open Graph preview support for chat apps.
+* **Ambient & Tactile Audio:** Toggleable river/night ambience (`water-flowing.mp3`, `birds-chirping.mp3`) paired with custom interaction sound effects (`switch-sound.mp3`, `banana-leaf.mp3`, `pop.mp3`, `water-splash.mp3`, `lantern-fly.mp3`, `wish.mp3`).
+* **Creator Trust & Info Modal (`ⓘ`):** Header attribution (`Created by student @th4mez_.adv`) and a multilingual creator note (`TH` / `EN` / `ZH`).
 
-#### 3. Animation Optimization
-- Replaced setInterval loops with requestAnimationFrame
-- Smooth, performant lantern animations
-- Automatic cleanup when components unmount
-- Configurable animation speed
+---
 
-#### 4. Styling
-- Migrated all CSS to maintain exact visual fidelity
-- Preserved responsive design breakpoints
-- Maintained all original animations (moon glow, etc.)
-- Organized CSS for better maintainability
+## Tech Stack
 
-#### 5. Build Process
-- Vite for fast development and optimized production builds
-- ESLint and Prettier ready for code quality
-- Production build outputs optimized assets
+| Layer | Technology | Role in Loy Jai |
+| :--- | :--- | :--- |
+| **Frontend** | React + Vite | Interactive UI, step-by-step krathong/lantern builder, live wish canvas, and gift-card sharing |
+| **Frontend Hosting** | Vercel | Production static/SPA deployment (`npm run build` / Vite production bundling) |
+| **Backend** | FastAPI + Uvicorn | REST API for wishes (`GET /api/wishes`, `POST /api/wishes`), stats (`GET /api/stats`), health checks, and share preview routes |
+| **Backend Hosting** | Render | Managed Python web service hosting (`https://loyjai.onrender.com`) |
+| **Database** | Neon PostgreSQL | Persistent storage for shared wishes and aggregate counts |
 
-## Functionality Preserved
+---
 
-✅ Lantern Release Animation
-- Click "Release Lantern" opens modal form
-- Form submission creates animated lantern
-- Lanterns float upward at consistent speed
-- Wish text displays correctly on each lantern
-- Counter increments and persists in localStorage
+## Project Structure & Environment Variables
 
-✅ User Interface
-- Modal form for wish submission with validation
-- Responsive design (mobile/tablet/desktop)
-- Visual elements: moon, bridge, decorative lotus/cattail
-- Start buttons with hover effects
-- Statistics display
-
-✅ Data Persistence
-- Lantern count persists between sessions
-- Lantern array (with names/wishes) persists between sessions
-- Form resets after submission
-
-## Technical Details
-
-### Animation System
-The lantern animation uses requestAnimationFrame for smooth performance:
-- Each lantern tracks its own top position
-- Animation frame stored in lantern object for cleanup
-- Lanterns automatically stop animating when off-screen (< -100px top)
-- Proper cleanup prevents memory leaks
-
-### State Structure
-```javascript
-lanterns: [
-  {
-    id: number,
-    name: string,
-    wish: string,
-    topOff: number,  // Current vertical position
-    animationFrame: number  // requestAnimationFrame ID
-  }
-]
-```
-
-### LocalStorage Keys
-- `lanternCount`: Integer tracking total lanterns released
-- `lanterns`: JSON array of lantern objects
-
-## Setup Instructions
-
-1. **Development**
-   ```bash
-   npm install
-   npm run dev
-   ```
-
-2. **Production Build**
-   ```bash
-   npm run build
-   ```
-
-3. **Preview Build**
-   ```bash
-   npm run preview
-   ```
-
-## File Sizes (Production Build)
-- index.html: 0.46 KB gzipped
-- CSS: 4.19 KB gzipped to 1.24 KB
-- JavaScript: 147.11 KB gzipped to 47.32 KB
-
-## Future Enhancement Foundation
-
-The refactored architecture easily supports:
-1. **Krathong Creation** - Implement similar to lanterns
-2. **Sound Effects** - AudioContext or HTML5 audio integration
-3. **User Accounts** - Firebase or backend integration
-4. **Wish Sharing** - Social media integration
-5. **Advanced Animations** - Libraries like framer-motion or react-spring
-6. **Educational Content** - Additional informational panels
-7. **Multi-language Support** - i18n implementation
-
-## Verification
-
-All original functionality has been verified to work identically:
-- Visual appearance matches original
-- Interactive elements behave the same
-- Performance is smooth and responsive
-- LocalStorage persistence works correctly
-- Responsive design maintains original breakpoints
-
-The application is now ready for continued development with improved maintainability and scalability.
-
-## PostgreSQL API integration
-
-The React app reads and writes wishes through the FastAPI service. Copy
-`frontend/.env.example` to `frontend/.env.local` and set `VITE_API_BASE_URL` to
-the public API origin. `VITE_SHARE_BASE_URL` is optional and defaults to the API
-origin; it should point at the host serving `/w/{wish_id}` previews. Configure
-the backend's `DATABASE_URL` and `FRONTEND_ORIGIN` as well. Restart Vite after
-changing frontend environment variables.
+### Typical Layout
+```text
+├── backend/
+│   ├── main.py
+│   ├── database.py
+│   ├── models.py
+│   └── requirements.txt
+└── frontend/
+    ├── public/
+    │   ├── images/
+    │   │   └── profile.png
+    │   └── assets/
+    │       ├── images/
+    │       │   └── og-preview.png
+    │       └── sounds/
+    └── src/

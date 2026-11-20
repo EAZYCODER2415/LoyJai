@@ -32,11 +32,35 @@ const KrathongSprite = ({ accent = '#f49aaa', candle = '#f5be57', base = 'banana
         <path d="M120 68v74M128 75v67" />
       </g>
     </g>
-    <g fill="#fff" stroke={accent} strokeWidth="2">
-      <circle cx="72" cy="130" r="12" /><circle cx="168" cy="130" r="12" />
-      <circle cx="120" cy="118" r="10" />
-    </g>
+    <KrathongFlowers accent={accent} />
   </svg>
+);
+
+export const KrathongFlowers = ({ accent = '#f49aaa' }) => (
+  <g>
+    {[
+      [72, 130],
+      [168, 130],
+      [120, 118]
+    ].map(([x, y]) => (
+      <g key={`${x}-${y}`}>
+        {[0, 72, 144, 216, 288].map(angle => (
+          <ellipse
+            key={angle}
+            cx={x}
+            cy={y - 6}
+            rx="4.5"
+            ry="7"
+            fill={accent}
+            stroke="#fff8e9"
+            strokeWidth="1"
+            transform={`rotate(${angle} ${x} ${y})`}
+          />
+        ))}
+        <circle cx={x} cy={y} r="3" fill="#ffd66b" />
+      </g>
+    ))}
+  </g>
 );
 
 const getRiverSpawnY = () => window.innerHeight * (0.48 + Math.random() * 0.2);

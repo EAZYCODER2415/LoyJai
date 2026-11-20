@@ -35,6 +35,7 @@ allowed_origins = [
     )
     if origin
 ]
+frontend_origin = allowed_origins[0] if allowed_origins else "http://localhost:5173"
 if not allowed_origins:
     allowed_origins = [
         "http://localhost:5173",
@@ -68,6 +69,7 @@ async def health_check():
 @app.get("/api/wishes", response_model=list[WishResponse])
 async def get_wishes(
     limit: int = Query(default=50, ge=1, le=50),
+    offset: int = Query(default=0, ge=0),
     item_type: Optional[Literal["lantern", "krathong"]] = None,
 ):
     async with pool.connection() as conn:
@@ -78,20 +80,22 @@ async def get_wishes(
                     SELECT id, item_type, sender_name, wish_text, customization, created_at
                     FROM wishes
                     WHERE item_type = %s
-                    ORDER BY created_at DESC
+                    ORDER BY created_at DESC, id DESC
                     LIMIT %s
+                    OFFSET %s
                     """,
-                    (item_type, limit),
+                    (item_type, limit, offset),
                 )
             else:
                 await cur.execute(
                     """
                     SELECT id, item_type, sender_name, wish_text, customization, created_at
                     FROM wishes
-                    ORDER BY created_at DESC
+                    ORDER BY created_at DESC, id DESC
                     LIMIT %s
+                    OFFSET %s
                     """,
-                    (limit,),
+                    (limit, offset),
                 )
             rows = await cur.fetchall()
             return rows
@@ -102,8 +106,7 @@ async def wish_preview(wish_id: str, request: Request):
     try:
         wish_uuid = UUID(wish_id)
     except ValueError:
-        frontend_origin = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000").rstrip("/") + "/"
-        return RedirectResponse(frontend_origin, status_code=302)
+        return RedirectResponse(frontend_origin + "/", status_code=302)
 
     async with pool.connection() as conn:
         async with conn.cursor(row_factory=dict_row) as cur:
@@ -117,9 +120,8 @@ async def wish_preview(wish_id: str, request: Request):
             )
             wish = await cur.fetchone()
 
-    frontend_origin = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000").rstrip("/") + "/"
     if not wish:
-        return RedirectResponse(frontend_origin, status_code=302)
+        return RedirectResponse(frontend_origin + "/", status_code=302)
 
     sender = html.escape(wish["sender_name"], quote=True)
     wish_text = html.escape(wish["wish_text"], quote=True)
@@ -130,10 +132,11 @@ async def wish_preview(wish_id: str, request: Request):
     )
     title = f"{sender} {item_label} on ลอยใจ (Loy Jai)"
     preview_url = html.escape(str(request.url), quote=True)
-    redirect_url = urljoin(frontend_origin, f"?wish={quote(str(wish_uuid))}")
+    frontend_base_url = frontend_origin.rstrip("/") + "/"
+    redirect_url = urljoin(frontend_base_url, f"?wish={quote(str(wish_uuid))}")
     safe_redirect_url = json.dumps(redirect_url).replace("<", "\\u003c")
     image_url = html.escape(
-        os.getenv("OG_IMAGE_URL", urljoin(frontend_origin, "images/skyline.png")),
+        os.getenv("OG_IMAGE_URL", urljoin(frontend_base_url, "assets/images/og-preview.png")),
         quote=True,
     )
 

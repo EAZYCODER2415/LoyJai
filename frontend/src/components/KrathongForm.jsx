@@ -1,4 +1,5 @@
 import React from 'react';
+import { KrathongFlowers } from './Krathong.jsx';
 
 const KrathongForm = ({ formData, onFormChange, onSubmit, onToggleForm, labels, language, submitting, error }) => {
   const handleSubmit = (event) => {
@@ -45,6 +46,9 @@ const KrathongForm = ({ formData, onFormChange, onSubmit, onToggleForm, labels, 
               <path d="M38 138L65 72l27 76zM72 148l27-92 21 92zM120 150l22-92 28 92zM155 148l24-76 26 66zM20 140l100 38 100-38-100-31z" />
             </g>
           )}
+          <KrathongFlowers
+            accent={formData.accent === 'gold' ? '#f5be57' : formData.accent === 'white' ? '#f7f3df' : '#f49aaa'}
+          />
           <rect x="94" y="132" width="52" height="42" rx="4" fill="#087b64" />
           <rect x="88" y="74" width="12" height="68" rx="5" fill={formData.candle === 'pink' ? '#f49aaa' : formData.candle === 'white' ? '#f7f3df' : '#f5be57'} />
           <rect x="140" y="74" width="12" height="68" rx="5" fill="#f7f1d7" />
@@ -70,10 +74,10 @@ const KrathongForm = ({ formData, onFormChange, onSubmit, onToggleForm, labels, 
         <fieldset className="builder-options">
           <legend>{labels.krathongBase}</legend>
           <div className="option-grid">
-            <button type="button" className={formData.base === 'banana' ? 'selected' : ''} onClick={() => choose('base', 'banana')}>
+            <button type="button" data-sound="bananaLeaf" className={formData.base === 'banana' ? 'selected' : ''} onClick={() => choose('base', 'banana')}>
               {language === 'th' ? 'ใบกล้วย' : 'Banana leaf'}
             </button>
-            <button type="button" className={formData.base === 'lotus' ? 'selected' : ''} onClick={() => choose('base', 'lotus')}>
+            <button type="button" data-sound="builder" className={formData.base === 'lotus' ? 'selected' : ''} onClick={() => choose('base', 'lotus')}>
               {language === 'th' ? 'ดอกบัว' : 'Lotus'}
             </button>
           </div>
@@ -87,7 +91,7 @@ const KrathongForm = ({ formData, onFormChange, onSubmit, onToggleForm, labels, 
               ['pink', language === 'th' ? 'สีชมพู' : 'Pink'],
               ['white', language === 'th' ? 'สีขาว' : 'White']
             ].map(([value, label]) => (
-              <button key={value} type="button" className={formData.candle === value ? 'selected' : ''} onClick={() => choose('candle', value)}>
+              <button key={value} type="button" data-sound="builder" className={formData.candle === value ? 'selected' : ''} onClick={() => choose('candle', value)}>
                 {label}
               </button>
             ))}
@@ -101,7 +105,7 @@ const KrathongForm = ({ formData, onFormChange, onSubmit, onToggleForm, labels, 
               ['classic', language === 'th' ? 'ดอกเดียว' : 'Classic'],
               ['bundled', language === 'th' ? 'มัดธูป' : 'Bundled']
             ].map(([value, label]) => (
-              <button key={value} type="button" className={formData.incense === value ? 'selected' : ''} onClick={() => choose('incense', value)}>
+              <button key={value} type="button" data-sound="builder" className={formData.incense === value ? 'selected' : ''} onClick={() => choose('incense', value)}>
                 {label}
               </button>
             ))}
@@ -112,7 +116,7 @@ const KrathongForm = ({ formData, onFormChange, onSubmit, onToggleForm, labels, 
           <legend>{labels.accent}</legend>
           <div className="accent-options">
             {['pink', 'gold', 'white'].map(value => (
-              <button key={value} type="button" aria-label={value} className={formData.accent === value ? 'selected' : ''} onClick={() => choose('accent', value)}>
+              <button key={value} type="button" data-sound="builder" aria-label={value} className={formData.accent === value ? 'selected' : ''} onClick={() => choose('accent', value)}>
                 <span style={{ background: value === 'pink' ? '#f49aaa' : value === 'gold' ? '#f5be57' : '#f7f3df' }} />
               </button>
             ))}

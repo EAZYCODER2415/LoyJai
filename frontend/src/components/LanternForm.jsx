@@ -67,6 +67,7 @@ const LanternForm = ({ showForm, onToggleForm, formData, onFormChange, onSubmit,
               <button
                 key={value}
                 type="button"
+                data-sound="builder"
                 className={formData.style === value ? 'selected' : ''}
                 onClick={() => onFormChange(previous => ({ ...previous, style: value }))}
               >{label}</button>
@@ -85,6 +86,7 @@ const LanternForm = ({ showForm, onToggleForm, formData, onFormChange, onSubmit,
               <button
                 key={value}
                 type="button"
+                data-sound="builder"
                 aria-label={value}
                 className={formData.glow === value ? 'selected' : ''}
                 style={{ '--glow-color': color }}
