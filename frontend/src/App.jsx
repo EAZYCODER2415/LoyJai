@@ -931,6 +931,7 @@ function App() {
   ];
   const lanternItems = festivalItems.filter(item => item.form === 'lantern');
   const krathongItems = festivalItems.filter(item => item.form === 'krathong');
+  const activeFindWishHighlights = Array.isArray(findWishAnimation) ? findWishAnimation : [];
 
   const renderFestivalItem = (item) => {
     if (item.form === 'krathong') {
@@ -1357,7 +1358,7 @@ function App() {
               <p>{labels.profileDescription}</p>
             </section>
         </Popup>
-        {findWishAnimation.map(({ wishId, animationId }) => (
+        {activeFindWishHighlights.map(({ wishId, animationId }) => (
           <FindWishHighlight
             key={`${animationId}-${wishId}`}
             wishId={wishId}
