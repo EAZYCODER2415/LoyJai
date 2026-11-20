@@ -1,6 +1,3 @@
-### DATABASE_URL=postgresql://your_user:your_password@ep-your-project-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
-### FRONTEND_ORIGIN=http://localhost:3000
-
 import html
 import json
 import os
