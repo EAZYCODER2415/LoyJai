@@ -86,10 +86,15 @@ const Lantern = ({ lantern, isFocused = false, onFadeComplete, onLanternClick })
     const animateLantern = () => {
       if (!lanternRef.current) return;
 
-      if (isLooping && currentTop <= bounds.minY + 1 && !isFading) {
+      if (currentTop <= -itemHeight && !isFading) {
         isFading = true;
         lanternRef.current.classList.add('is-fading-out');
         fadeTimeout = window.setTimeout(() => {
+          if (!isLooping) {
+            onFadeComplete(lantern.id);
+            return;
+          }
+
           const smallSize = getLanternDimensions();
           currentTop = getLanternSpawnY(smallSize.width, smallSize.height, true);
           const xBounds = getHorizontalBounds(smallSize.width);
@@ -105,14 +110,8 @@ const Lantern = ({ lantern, isFocused = false, onFadeComplete, onLanternClick })
         return;
       }
 
-      currentTop = Math.max(bounds.minY, currentTop - (isLooping ? 0.0875 : 0.2));
+      currentTop -= isLooping ? 0.0875 : 0.2;
       lanternRef.current.style.top = `${currentTop}px`;
-
-      if (!isLooping && currentTop <= bounds.minY) {
-        lanternRef.current.classList.add('is-fading');
-        fadeTimeout = window.setTimeout(() => onFadeComplete(lantern.id), 700);
-        return;
-      }
 
       animationFrame = requestAnimationFrame(animateLantern);
     };
