@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   getHorizontalBounds,
   getLanternBounds,
+  getLanternDimensions,
   getLanternSpawnY,
   getRiverBounds,
   getRiverSpawnY
@@ -72,11 +73,17 @@ const readTrackedWishIds = () => {
   }
 };
 
+const getLanternSpawnPosition = (large = false, featured = false) => {
+  const size = getLanternDimensions(large);
+  return getLanternSpawnY(size.width, size.height, featured);
+};
+
 const createFloatingWish = (wish, index = 0, featured = false) => {
   const isLantern = wish.item_type === 'lantern';
   const id = String(wish.id);
   const isMine = readTrackedWishIds().includes(id);
-  const bounds = isLantern ? getLanternBounds() : getRiverBounds();
+  const lanternSize = getLanternDimensions();
+  const bounds = isLantern ? getLanternBounds(lanternSize.width, lanternSize.height) : getRiverBounds();
   return {
     id: wish.id,
     form: wish.item_type,
@@ -88,7 +95,7 @@ const createFloatingWish = (wish, index = 0, featured = false) => {
     isMine,
     xPosition: featured ? 50 : bounds.min + Math.random() * (bounds.max - bounds.min),
     topOff: isLantern
-      ? getLanternSpawnY(42, 68, featured)
+      ? getLanternSpawnPosition(false, featured)
       : getRiverSpawnY(82, featured),
     animationDelayMs: featured ? 0 : (index % 50) * 35
   };
@@ -138,6 +145,7 @@ const copy = {
     fxOff: 'Turn sound effects on',
     help: 'Help',
     findMyWish: 'Find my wish',
+    wishNotVisible: 'Your wish is not on screen right now. Try again in a little while.',
     guideTitle: 'Welcome to Loy Jai',
     guideBody: 'Release a lantern into the sky or float a krathong on the river. Tap any light or wish to read and share it. You can begin right away.',
     skip: 'Skip',
@@ -206,6 +214,7 @@ const copy = {
     fxOff: 'เปิดเสียงเอฟเฟกต์',
     help: 'ช่วยเหลือ',
     findMyWish: 'ค้นหาคำอธิษฐานของฉัน',
+    wishNotVisible: 'ตอนนี้คำอธิษฐานของคุณไม่อยู่บนหน้าจอ ลองค้นหาอีกครั้งในอีกสักครู่',
     guideTitle: 'ยินดีต้อนรับสู่ลอยใจ',
     guideBody: 'ปล่อยโคมลอยสู่ท้องฟ้าหรือลอยกระทงไปตามสายน้ำ แตะแสงหรือคำอธิษฐานเพื่ออ่านและแชร์ แล้วเริ่มส่งคำอธิษฐานได้เลย',
     skip: 'ข้าม',
@@ -276,6 +285,7 @@ const copy = {
     fxOff: '打开音效',
     help: '帮助',
     findMyWish: '找到我的愿望',
+    wishNotVisible: '你的愿望目前不在屏幕上，请稍后再试。',
     guideTitle: '欢迎来到 Loy Jai',
     guideBody: '放飞一盏天灯，或在河上漂放一盏水灯。点击任意灯光或愿望即可阅读和分享。现在就可以开始。',
     skip: '跳过',
@@ -338,6 +348,47 @@ const languageOptions = [
   { code: 'zh', label: '中文', icon: 'CN' }
 ];
 
+const FindWishHighlight = ({ wishId, onComplete }) => {
+  const highlightRef = useRef(null);
+
+  useEffect(() => {
+    let frameId;
+    let startedAt;
+    let target;
+    const duration = 12_000;
+
+    const updatePosition = (timestamp) => {
+      startedAt ??= timestamp;
+      if (!target?.isConnected) {
+        target = Array.from(document.querySelectorAll('[data-wish-id]'))
+          .find(element => element.dataset.wishId === wishId);
+      }
+      if (target && highlightRef.current) {
+        const bounds = target.getBoundingClientRect();
+        const diameter = Math.min(
+          Math.max(Math.max(bounds.width, bounds.height) * 3, 96),
+          Math.max(48, Math.min(window.innerWidth, window.innerHeight) * 0.82)
+        );
+        highlightRef.current.style.left = `${bounds.left + bounds.width / 2}px`;
+        highlightRef.current.style.top = `${bounds.top + bounds.height / 2}px`;
+        highlightRef.current.style.width = `${diameter}px`;
+        highlightRef.current.style.height = `${diameter}px`;
+      }
+
+      if (timestamp - startedAt >= duration) {
+        onComplete();
+        return;
+      }
+      frameId = window.requestAnimationFrame(updatePosition);
+    };
+
+    frameId = window.requestAnimationFrame(updatePosition);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [wishId, onComplete]);
+
+  return <div ref={highlightRef} className="find-wish-highlight" aria-hidden="true" />;
+};
+
 function App() {
   const [lanterns, setLanterns] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -350,6 +401,8 @@ function App() {
   const [showGuide, setShowGuide] = useState(() => {
     return !getSharedWishId() && localStorage.getItem(GUIDE_SEEN_KEY) !== 'true';
   });
+  const [findWishAnimation, setFindWishAnimation] = useState(null);
+  const [findWishStatus, setFindWishStatus] = useState('');
   const [historyRevision, setHistoryRevision] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(() => {
     const savedPreference = localStorage.getItem('soundEnabled');
@@ -370,8 +423,9 @@ function App() {
   const [showLanguages, setShowLanguages] = useState(false);
   const [celebrations, setCelebrations] = useState([]);
   const nextCelebrationId = useRef(0);
-  const findWishIndexRef = useRef(0);
   const focusTimeoutRef = useRef(null);
+  const findWishStatusTimeoutRef = useRef(null);
+  const findWishAnimationIdRef = useRef(0);
   const languageRef = useRef(null);
   const labels = copy[language];
   const selectedLanguage = languageOptions.find(option => option.code === language) || languageOptions[0];
@@ -380,7 +434,10 @@ function App() {
   const soundEffectsRef = useRef(new Map());
   const wishOffsetsRef = useRef({ lantern: 0, krathong: 0 });
 
-  useEffect(() => () => window.clearTimeout(focusTimeoutRef.current), []);
+  useEffect(() => () => {
+    window.clearTimeout(focusTimeoutRef.current);
+    window.clearTimeout(findWishStatusTimeoutRef.current);
+  }, []);
 
   const refreshStats = useCallback(async () => {
     const nextStats = await requestApi('/api/stats');
@@ -656,46 +713,46 @@ function App() {
     }
   };
 
-  const focusWish = (item) => {
-    const wishId = String(item.id);
-    const isLantern = item.form === 'lantern';
-    const isLarge = isLantern && item.phase === 'large';
-    const focused = {
-      ...item,
-      featured: true,
-      isMine: true,
-      xPosition: 50,
-      topOff: isLantern
-        ? getLanternSpawnY(isLarge ? 150 : 42, isLarge ? 185 : 68, true)
-        : getRiverSpawnY(82, true)
-    };
-    if (isLantern) {
-      setLanterns(current => [focused, ...current.filter(wish => String(wish.id) !== wishId)].slice(0, 50));
-    } else {
-      setKrathongs(current => [focused, ...current.filter(wish => String(wish.id) !== wishId)].slice(0, 50));
-    }
-    setFocusedWishId(wishId);
-    window.clearTimeout(focusTimeoutRef.current);
-    focusTimeoutRef.current = window.setTimeout(() => setFocusedWishId(null), 6000);
-  };
+  const handleFindMyWish = () => {
+    window.clearTimeout(findWishStatusTimeoutRef.current);
+    setFindWishStatus('');
+    const trackedIds = new Set(mineWishIds);
+    const viewport = window.visualViewport;
+    const viewportLeft = viewport?.offsetLeft ?? 0;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportRight = viewportLeft + (viewport?.width ?? window.innerWidth);
+    const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
+    const visibleWish = Array.from(document.querySelectorAll('[data-wish-id]')).find(element => {
+      if (!trackedIds.has(element.dataset.wishId) || element.classList.contains('is-retiring')) return false;
+      const bounds = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      return bounds.width > 0
+        && bounds.height > 0
+        && bounds.right > viewportLeft
+        && bounds.bottom > viewportTop
+        && bounds.left < viewportRight
+        && bounds.top < viewportBottom
+        && style.visibility !== 'hidden'
+        && style.display !== 'none'
+        && Number(style.opacity) > 0.05;
+    });
 
-  const handleFindMyWish = async () => {
-    if (!mineWishIds.length) return;
-    const index = findWishIndexRef.current % mineWishIds.length;
-    findWishIndexRef.current = index + 1;
-    const wishId = mineWishIds[index];
-    const item = [...lanterns, ...krathongs].find(wish => String(wish.id) === wishId);
-    if (item) {
-      focusWish(item);
+    if (!visibleWish) {
+      setFindWishAnimation(null);
+      setFindWishStatus(labels.wishNotVisible);
+      findWishStatusTimeoutRef.current = window.setTimeout(() => setFindWishStatus(''), 3800);
       return;
     }
-    try {
-      const wish = await requestApi(`/api/wishes/${encodeURIComponent(wishId)}`);
-      focusWish(createFloatingWish(wish, 0, true));
-    } catch (error) {
-      setApiError(error.message);
-    }
+
+    setFindWishAnimation({
+      wishId: visibleWish.dataset.wishId,
+      animationId: ++findWishAnimationIdRef.current
+    });
   };
+
+  const handleFindWishAnimationComplete = useCallback(() => {
+    setFindWishAnimation(null);
+  }, []);
 
   const dismissGuide = () => {
     localStorage.setItem(GUIDE_SEEN_KEY, 'true');
@@ -707,7 +764,7 @@ function App() {
       item.id === id ? {
         ...item,
         phase: 'looping',
-        topOff: getLanternSpawnY(42, 68, true),
+        topOff: getLanternSpawnPosition(false, true),
         hidden: false
       } : item
     )));
@@ -742,7 +799,7 @@ function App() {
         phase: 'large',
         releaseSize,
         isMine: true,
-        topOff: getLanternSpawnY(releaseSize === 'large' ? 150 : 42, releaseSize === 'large' ? 185 : 68, true),
+        topOff: getLanternSpawnPosition(releaseSize === 'large', true),
         xPosition: 50
       };
       setLanterns(current => [item, ...current.filter(existing => !existing.retiring)].slice(0, 50));
@@ -1014,17 +1071,6 @@ function App() {
             </div>
           </div>
         </header>
-        {mineWishIds.length > 0 && (
-          <button
-            type="button"
-            className="find-wish-button"
-            onClick={handleFindMyWish}
-          >
-            <span aria-hidden="true">✧</span>
-            {labels.findMyWish}
-          </button>
-        )}
-
         <div className="large-lantern-layer">
           {festivalItems
             .filter(item => item.form === 'lantern' && item.phase === 'large')
@@ -1045,6 +1091,16 @@ function App() {
           <div className="bridge" aria-hidden="true">
             <img src={`${import.meta.env.BASE_URL}images/bridge.png`} alt="" />
           </div>
+          {mineWishIds.length > 0 && (
+            <button
+              type="button"
+              className="find-wish-button"
+              onClick={handleFindMyWish}
+            >
+              <span aria-hidden="true">✧</span>
+              {labels.findMyWish}
+            </button>
+          )}
           <div className="start-buttons">
             <button
               onClick={handleToggleForm}
@@ -1241,6 +1297,18 @@ function App() {
               <p>{labels.profileDescription}</p>
             </section>
         </Popup>
+        {findWishAnimation && (
+          <FindWishHighlight
+            key={findWishAnimation.animationId}
+            wishId={findWishAnimation.wishId}
+            onComplete={handleFindWishAnimationComplete}
+          />
+        )}
+        {findWishStatus && (
+          <div className="wish-find-status" role="status" aria-live="polite">
+            {findWishStatus}
+          </div>
+        )}
       </main>
     </>
   );

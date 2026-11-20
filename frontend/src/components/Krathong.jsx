@@ -182,6 +182,7 @@ const Krathong = ({ krathong, isFocused = false, onComplete, onShare }) => {
   return (
     <div
       ref={krathongRef}
+      data-wish-id={String(krathong.id)}
       className={`krathong krathong-base-${krathong.customization?.base || 'banana'} krathong-incense-${krathong.customization?.incense || 'classic'} ${krathong.phase === 'new' ? 'is-new' : 'is-looping'}${krathong.featured ? ' is-featured' : ''}${krathong.isMine ? ' is-mine' : ''}${isFocused ? ' is-focused' : ''}${krathong.retiring ? ' is-retiring' : ''}`}
       role="button"
       aria-label={`Krathong by ${krathong.name}`}

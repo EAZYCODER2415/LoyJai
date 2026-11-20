@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { clampSceneValue, getHorizontalBounds, getLanternBounds, getLanternSpawnY } from '../sceneBounds.js';
+import { clampSceneValue, getHorizontalBounds, getLanternBounds, getLanternDimensions, getLanternSpawnY } from '../sceneBounds.js';
 
 const LanternSprite = ({ glow = 'gold', style = 'traditional', idPrefix }) => {
   const glowId = `${idPrefix}-glow`;
@@ -36,8 +36,8 @@ const Lantern = ({ lantern, isFocused = false, onFadeComplete, onLanternClick })
 
   useEffect(() => {
     const isLooping = lantern.phase === 'looping';
-    const itemWidth = isLooping || lantern.releaseSize === 'small' ? 42 : 150;
-    const itemHeight = itemWidth === 42 ? 68 : 185;
+    const isLarge = !isLooping && lantern.releaseSize !== 'small';
+    let { width: itemWidth, height: itemHeight } = getLanternDimensions(isLarge);
     let bounds = getLanternBounds(itemWidth, itemHeight);
     let currentTop = clampSceneValue(lantern.topOff, bounds.minY, bounds.maxY);
     let currentLeft = clampSceneValue(lantern.xPosition ?? 50, bounds.min, bounds.max);
@@ -49,6 +49,7 @@ const Lantern = ({ lantern, isFocused = false, onFadeComplete, onLanternClick })
     let animationStartTimeout;
     let isFading = false;
     const handleResize = () => {
+      ({ width: itemWidth, height: itemHeight } = getLanternDimensions(isLarge));
       bounds = getLanternBounds(itemWidth, itemHeight);
       currentTop = clampSceneValue(currentTop, bounds.minY, bounds.maxY);
       currentLeft = clampSceneValue(currentLeft, bounds.min, bounds.max);
@@ -89,8 +90,9 @@ const Lantern = ({ lantern, isFocused = false, onFadeComplete, onLanternClick })
         isFading = true;
         lanternRef.current.classList.add('is-fading-out');
         fadeTimeout = window.setTimeout(() => {
-          currentTop = getLanternSpawnY(42, 68, true);
-          const xBounds = getHorizontalBounds(42);
+          const smallSize = getLanternDimensions();
+          currentTop = getLanternSpawnY(smallSize.width, smallSize.height, true);
+          const xBounds = getHorizontalBounds(smallSize.width);
           currentLeft = xBounds.min + Math.random() * (xBounds.max - xBounds.min);
           lanternRef.current?.style.setProperty('top', `${currentTop}px`);
           lanternRef.current?.style.setProperty('left', `${currentLeft}%`);
@@ -137,6 +139,7 @@ const Lantern = ({ lantern, isFocused = false, onFadeComplete, onLanternClick })
     <div
       className={`lantern lantern-${lantern.customization?.style || 'traditional'} lantern-glow-${lantern.customization?.glow || 'gold'} ${lantern.phase === 'looping' ? 'is-looping' : 'is-large'}${lantern.releaseSize === 'small' ? ' is-small-release' : ''}${lantern.featured ? ' is-featured' : ''}${lantern.isMine ? ' is-mine' : ''}${isFocused ? ' is-focused' : ''}${lantern.retiring ? ' is-retiring' : ''}`}
       ref={lanternRef}
+      data-wish-id={String(lantern.id)}
       tabIndex="0"
       aria-label={`Lantern by ${lantern.name}`}
       role="button"
