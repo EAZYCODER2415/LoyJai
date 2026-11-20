@@ -65,9 +65,10 @@ export const getRiverBounds = (itemHeight = 82) => {
 export const getRiverSpawnY = (itemHeight = 82, featured = false) => {
   const { minY, maxY } = getRiverBounds(itemHeight);
   const narrowScreenFactor = clamp((640 - window.innerWidth) / 320, 0, 1);
-  const position = featured
-    ? 0.06 - narrowScreenFactor * 0.04
-    : 0.02 + Math.random() * (0.14 - narrowScreenFactor * 0.1);
+  const maxSpawnRange = featured
+    ? 0.25 - narrowScreenFactor * 0.17
+    : 0.42 - narrowScreenFactor * 0.32;
+  const position = 0.02 + Math.random() * maxSpawnRange;
   return minY + (maxY - minY) * position;
 };
 
