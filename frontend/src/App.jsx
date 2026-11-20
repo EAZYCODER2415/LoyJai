@@ -105,7 +105,7 @@ const createFloatingWish = (wish, index = 0, featured = false) => {
       ? featured
         ? getLanternSpawnPosition(false, true)
         : getLanternInitialY(lanternSize.width, lanternSize.height)
-      : getRiverSpawnY(82, featured),
+      : getRiverSpawnY(82),
     animationDelayMs: featured ? 0 : (index % 50) * 35
   };
 };
@@ -357,6 +357,50 @@ const languageOptions = [
   { code: 'zh', label: '中文', icon: 'CN' }
 ];
 
+const isWishRenderedAndVisible = (element, viewport) => {
+  if (!element.isConnected || element.classList.contains('is-retiring') || element.getClientRects().length === 0) {
+    return false;
+  }
+
+  const bounds = element.getBoundingClientRect();
+  const centerX = bounds.left + bounds.width / 2;
+  const centerY = bounds.top + bounds.height / 2;
+  const left = Math.max(bounds.left, viewport.left);
+  const right = Math.min(bounds.right, viewport.right);
+  const top = Math.max(bounds.top, viewport.top);
+  const bottom = Math.min(bounds.bottom, viewport.bottom);
+  if (
+    bounds.width <= 0
+    || bounds.height <= 0
+    || right <= left
+    || bottom <= top
+    || centerX < viewport.left
+    || centerX > viewport.right
+    || centerY < viewport.top
+    || centerY > viewport.bottom
+  ) {
+    return false;
+  }
+
+  let opacity = 1;
+  for (let ancestor = element; ancestor instanceof HTMLElement; ancestor = ancestor.parentElement) {
+    const style = window.getComputedStyle(ancestor);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+    opacity *= Number(style.opacity);
+  }
+  if (opacity <= 0.05) return false;
+
+  for (const xRatio of [0.25, 0.5, 0.75]) {
+    for (const yRatio of [0.25, 0.5, 0.75]) {
+      const x = left + (right - left) * xRatio;
+      const y = top + (bottom - top) * yRatio;
+      const hit = document.elementFromPoint(x, y);
+      if (hit && (hit === element || element.contains(hit))) return true;
+    }
+  }
+  return false;
+};
+
 const FindWishHighlight = ({ wishId, onComplete }) => {
   const highlightRef = useRef(null);
 
@@ -372,7 +416,15 @@ const FindWishHighlight = ({ wishId, onComplete }) => {
         target = Array.from(document.querySelectorAll('[data-wish-id]'))
           .find(element => element.dataset.wishId === wishId);
       }
-      if (target && highlightRef.current) {
+      const viewport = window.visualViewport
+        ? {
+          left: window.visualViewport.offsetLeft,
+          top: window.visualViewport.offsetTop,
+          right: window.visualViewport.offsetLeft + window.visualViewport.width,
+          bottom: window.visualViewport.offsetTop + window.visualViewport.height
+        }
+        : { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+      if (target && highlightRef.current && isWishRenderedAndVisible(target, viewport)) {
         const bounds = target.getBoundingClientRect();
         const diameter = Math.min(
           Math.max(Math.max(bounds.width, bounds.height) * 3, 96),
@@ -382,6 +434,9 @@ const FindWishHighlight = ({ wishId, onComplete }) => {
         highlightRef.current.style.top = `${bounds.top + bounds.height / 2}px`;
         highlightRef.current.style.width = `${diameter}px`;
         highlightRef.current.style.height = `${diameter}px`;
+        highlightRef.current.style.visibility = 'visible';
+      } else if (highlightRef.current) {
+        highlightRef.current.style.visibility = 'hidden';
       }
 
       if (timestamp - startedAt >= duration) {
@@ -733,25 +788,17 @@ function App() {
       findWishStatusTimeoutRef.current = window.setTimeout(() => setFindWishStatus(''), 3800);
       return;
     }
-    const viewport = window.visualViewport;
-    const viewportLeft = viewport?.offsetLeft ?? 0;
-    const viewportTop = viewport?.offsetTop ?? 0;
-    const viewportRight = viewportLeft + (viewport?.width ?? window.innerWidth);
-    const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
-    const visibleWishIds = [...new Set(Array.from(document.querySelectorAll('[data-wish-id]')).filter(element => {
-      if (!trackedIds.has(element.dataset.wishId) || element.classList.contains('is-retiring')) return false;
-      const bounds = element.getBoundingClientRect();
-      const style = window.getComputedStyle(element);
-      return bounds.width > 0
-        && bounds.height > 0
-        && bounds.right > viewportLeft
-        && bounds.bottom > viewportTop
-        && bounds.left < viewportRight
-        && bounds.top < viewportBottom
-        && style.visibility !== 'hidden'
-        && style.display !== 'none'
-        && Number(style.opacity) > 0.05;
-    }).map(element => element.dataset.wishId))];
+    const viewport = window.visualViewport
+      ? {
+        left: window.visualViewport.offsetLeft,
+        top: window.visualViewport.offsetTop,
+        right: window.visualViewport.offsetLeft + window.visualViewport.width,
+        bottom: window.visualViewport.offsetTop + window.visualViewport.height
+      }
+      : { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+    const visibleWishIds = [...new Set(Array.from(document.querySelectorAll('[data-wish-id]'))
+      .filter(element => trackedIds.has(element.dataset.wishId) && isWishRenderedAndVisible(element, viewport))
+      .map(element => element.dataset.wishId))];
 
     if (!visibleWishIds.length) {
       setFindWishStatus(labels.wishNotVisible);
