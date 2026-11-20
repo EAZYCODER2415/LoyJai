@@ -465,7 +465,7 @@ function App() {
   const [showGuide, setShowGuide] = useState(() => {
     return !getSharedWishId() && localStorage.getItem(GUIDE_SEEN_KEY) !== 'true';
   });
-  const [findWishAnimation, setFindWishAnimation] = useState(null);
+  const [findWishAnimation, setFindWishAnimation] = useState([]);
   const [findWishStatus, setFindWishStatus] = useState('');
   const [historyRevision, setHistoryRevision] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(() => {
@@ -781,7 +781,7 @@ function App() {
   const handleFindMyWish = () => {
     window.clearTimeout(findWishStatusTimeoutRef.current);
     setFindWishStatus('');
-    setFindWishAnimation(null);
+    setFindWishAnimation([]);
     const trackedIds = new Set(readTrackedWishIds());
     if (!trackedIds.size) {
       setFindWishStatus(labels.wishNotVisible);
