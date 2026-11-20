@@ -36,6 +36,11 @@ export const getLanternSpawnY = (itemWidth = 42, itemHeight = 68, featured = fal
   return minY + (maxY - minY) * position;
 };
 
+export const getLanternInitialY = (itemWidth = 42, itemHeight = 68) => {
+  const { minY, maxY } = getLanternBounds(itemWidth, itemHeight);
+  return minY + Math.random() * (maxY - minY);
+};
+
 export const getRiverBounds = (itemHeight = 82) => {
   const horizon = getSkylineHeight();
   const height = Math.max(1, window.visualViewport?.height || window.innerHeight);
@@ -59,6 +64,11 @@ export const getRiverSpawnY = (itemHeight = 82, featured = false) => {
   const { minY, maxY } = getRiverBounds(itemHeight);
   const position = featured ? 0.06 : 0.02 + Math.random() * 0.14;
   return minY + (maxY - minY) * position;
+};
+
+export const getRiverInitialX = (itemWidth = 82) => {
+  const { min, max } = getHorizontalBounds(itemWidth);
+  return min + Math.random() * (max - min);
 };
 
 export const clampSceneValue = clamp;

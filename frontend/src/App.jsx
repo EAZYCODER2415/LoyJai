@@ -10,7 +10,9 @@ import {
   getHorizontalBounds,
   getLanternBounds,
   getLanternDimensions,
+  getLanternInitialY,
   getLanternSpawnY,
+  getRiverInitialX,
   getRiverBounds,
   getRiverSpawnY
 } from './sceneBounds.js';
@@ -94,9 +96,15 @@ const createFloatingWish = (wish, index = 0, featured = false) => {
     phase: 'looping',
     featured,
     isMine,
-    xPosition: featured ? 50 : bounds.min + Math.random() * (bounds.max - bounds.min),
+    xPosition: featured
+      ? 50
+      : isLantern
+        ? bounds.min + Math.random() * (bounds.max - bounds.min)
+        : getRiverInitialX(82),
     topOff: isLantern
-      ? getLanternSpawnPosition(false, featured)
+      ? featured
+        ? getLanternSpawnPosition(false, true)
+        : getLanternInitialY(lanternSize.width, lanternSize.height)
       : getRiverSpawnY(82, featured),
     animationDelayMs: featured ? 0 : (index % 50) * 35
   };
