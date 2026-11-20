@@ -8,7 +8,7 @@ from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
@@ -26,18 +26,38 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Loy Jai API", version="1.0.0", lifespan=lifespan)
 
+configured_origins = os.getenv("FRONTEND_ORIGIN", "")
 allowed_origins = [
-    os.getenv("FRONTEND_ORIGIN", "http://localhost:3000"),
-    "http://127.0.0.1:3000",
+    origin
+    for origin in (
+        value.strip().rstrip("/")
+        for value in configured_origins.split(",")
+    )
+    if origin
 ]
+if not allowed_origins:
+    allowed_origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+@app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
+async def root(request: Request):
+    response = JSONResponse({"service": "LoyJai API", "status": "ok"})
+    if request.method == "HEAD":
+        return Response(status_code=response.status_code, headers=response.headers)
+    return response
 
 
 @app.get("/health")
