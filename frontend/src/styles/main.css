@@ -552,7 +552,7 @@ div.lantern {
     pointer-events: auto;
     cursor: pointer;
     filter: drop-shadow(0 8px 18px rgba(251, 173, 40, 0.2));
-    transition: opacity 700ms ease-out, filter 700ms ease-out;
+    transition: opacity 700ms ease-out, filter 180ms ease, scale 180ms ease;
 }
 
 div.lantern.is-large {
@@ -1492,8 +1492,14 @@ div.lantern img { width: 100%; height: auto; }
     filter: drop-shadow(0 0 16px rgba(247, 243, 223, 0.72)) !important;
 }
 
+
 .krathong-base-lotus img {
     filter: hue-rotate(-18deg) saturate(0.82) drop-shadow(0 5px 12px rgba(245, 190, 87, 0.28));
+}
+
+div.lantern[class]:is(:hover, :focus-visible) {
+    filter: brightness(1.8) drop-shadow(0 0 10px rgba(255, 255, 255, .98)) drop-shadow(0 0 24px rgba(255, 205, 74, .9)) !important;
+    scale: 1.1;
 }
 
 input[type='text'], textarea {

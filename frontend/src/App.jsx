@@ -18,6 +18,7 @@ const backgroundTrack = `${import.meta.env.BASE_URL}assets/loy-krathong.mp3`;
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const SHARE_BASE_URL = (import.meta.env.VITE_SHARE_BASE_URL || API_BASE_URL).replace(/\/+$/, '');
 const TRACKED_WISHES_KEY = 'loyJaiMyWishIds';
+const LATEST_WISH_ID_KEY = 'loyJaiLatestWishId';
 const GUIDE_SEEN_KEY = 'loyJaiGuideSeen';
 const SOUND_EFFECTS = {
   button: 'switch-sound.mp3',
@@ -704,9 +705,10 @@ function App() {
 
   const rememberWish = (id) => {
     const wishId = String(id);
-    const nextIds = [...new Set([...mineWishIds, wishId])];
+    const nextIds = [wishId, ...new Set(mineWishIds.filter(savedId => savedId !== wishId))];
     setMineWishIds(nextIds);
     try {
+      localStorage.setItem(LATEST_WISH_ID_KEY, wishId);
       localStorage.setItem(TRACKED_WISHES_KEY, JSON.stringify(nextIds));
     } catch (error) {
       setApiError(`Your wish was released, but could not be saved on this device: ${error.message}`);
@@ -716,14 +718,21 @@ function App() {
   const handleFindMyWish = () => {
     window.clearTimeout(findWishStatusTimeoutRef.current);
     setFindWishStatus('');
-    const trackedIds = new Set(mineWishIds);
+    setFindWishAnimation(null);
+    const trackedIds = readTrackedWishIds();
+    const wishId = localStorage.getItem(LATEST_WISH_ID_KEY) || trackedIds[trackedIds.length - 1];
+    if (!wishId) {
+      setFindWishStatus(labels.wishNotVisible);
+      findWishStatusTimeoutRef.current = window.setTimeout(() => setFindWishStatus(''), 3800);
+      return;
+    }
     const viewport = window.visualViewport;
     const viewportLeft = viewport?.offsetLeft ?? 0;
     const viewportTop = viewport?.offsetTop ?? 0;
     const viewportRight = viewportLeft + (viewport?.width ?? window.innerWidth);
     const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
     const visibleWish = Array.from(document.querySelectorAll('[data-wish-id]')).find(element => {
-      if (!trackedIds.has(element.dataset.wishId) || element.classList.contains('is-retiring')) return false;
+      if (element.dataset.wishId !== wishId || element.classList.contains('is-retiring')) return false;
       const bounds = element.getBoundingClientRect();
       const style = window.getComputedStyle(element);
       return bounds.width > 0
@@ -738,7 +747,6 @@ function App() {
     });
 
     if (!visibleWish) {
-      setFindWishAnimation(null);
       setFindWishStatus(labels.wishNotVisible);
       findWishStatusTimeoutRef.current = window.setTimeout(() => setFindWishStatus(''), 3800);
       return;
