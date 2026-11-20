@@ -47,7 +47,7 @@ body {
 .celebration-layer {
     position: fixed;
     inset: 0;
-    z-index: 200;
+    z-index: 10000;
     overflow: hidden;
     pointer-events: none;
 }
@@ -60,14 +60,14 @@ body {
 
 .firework-spark {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 3px;
-    height: 12px;
+    top: -8px;
+    left: -2px;
+    width: 5px;
+    height: 16px;
     border-radius: 999px;
     background: var(--spark-color);
-    box-shadow: 0 0 8px var(--spark-color);
-    animation: firework-explode 900ms cubic-bezier(.12, .65, .35, 1) both;
+    box-shadow: 0 0 12px 2px var(--spark-color);
+    animation: firework-explode 1100ms cubic-bezier(.12, .65, .35, 1) both;
 }
 
 .confetti-piece {
@@ -85,11 +85,11 @@ body {
 @keyframes firework-explode {
     from {
         opacity: 1;
-        transform: rotate(var(--angle)) translateY(0) scaleY(.4);
+        transform: translate(-50%, -50%) rotate(var(--angle)) translateY(0) scaleY(.4);
     }
     to {
         opacity: 0;
-        transform: rotate(var(--angle)) translateY(calc(var(--distance) * -1)) scaleY(1);
+        transform: translate(-50%, -50%) rotate(var(--angle)) translateY(calc(0px - var(--distance))) scaleY(1);
     }
 }
 
@@ -100,7 +100,8 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
     .celebration-layer * {
-        animation-duration: 1ms !important;
+        animation-duration: 1800ms !important;
+        animation-delay: 0ms !important;
     }
 }
 

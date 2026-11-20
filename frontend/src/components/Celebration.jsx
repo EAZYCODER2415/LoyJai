@@ -35,7 +35,7 @@ const Celebration = ({ id, onComplete }) => {
           ))}
         </div>
       ))}
-      {Array.from({ length: 36 }, (_, index) => (
+      {Array.from({ length: 64 }, (_, index) => (
         <i
           key={`confetti-${index}`}
           className="confetti-piece"
