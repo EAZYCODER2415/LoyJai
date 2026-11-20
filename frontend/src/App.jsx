@@ -7,6 +7,66 @@ import Popup from './components/Popup.jsx';
 import Celebration from './components/Celebration.jsx';
 import { useState, useEffect, useCallback, useRef } from 'react';
 const backgroundTrack = `${import.meta.env.BASE_URL}assets/loy-krathong.mp3`;
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+const SHARE_BASE_URL = (import.meta.env.VITE_SHARE_BASE_URL || API_BASE_URL).replace(/\/+$/, '');
+
+const requestApi = async (path, options) => {
+  if (!API_BASE_URL) {
+    throw new Error('VITE_API_BASE_URL is not configured.');
+  }
+  const response = await fetch(`${API_BASE_URL}${path}`, options);
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.detail || `API request failed (${response.status}).`);
+  }
+  return response.json();
+};
+
+const shuffle = (items) => {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+};
+
+const createFloatingWish = (wish, index = 0, featured = false) => {
+  const isLantern = wish.item_type === 'lantern';
+  const skylineHeight = Math.min(Math.max(408, window.innerWidth * 0.28333), window.innerHeight * 0.85);
+  const riverHeight = Math.max(1, window.innerHeight - skylineHeight);
+  return {
+    id: wish.id,
+    form: wish.item_type,
+    name: wish.sender_name,
+    wish: wish.wish_text,
+    customization: wish.customization || {},
+    phase: 'looping',
+    featured,
+    xPosition: featured ? 50 : 8 + Math.random() * 84,
+    topOff: isLantern
+      ? featured ? window.innerHeight * 0.32 : window.innerHeight * (0.12 + Math.random() * 0.32)
+      : featured
+        ? skylineHeight + riverHeight * 0.48
+        : skylineHeight + riverHeight * (0.15 + Math.random() * 0.68),
+    animationDelayMs: featured ? 0 : (index % 50) * 35
+  };
+};
+
+const mergeWishSample = (currentItems, sampledItems) => {
+  const current = currentItems.filter(item => !item.retiring);
+  const byId = new Map(current.map(item => [String(item.id), item]));
+  const incomingIds = new Set(sampledItems.map(item => String(item.id)));
+  const featuredItems = current.filter(item => item.featured && !incomingIds.has(String(item.id)));
+  const next = [...featuredItems, ...sampledItems]
+    .slice(0, 50)
+    .map(item => byId.get(String(item.id)) || item);
+  const nextIds = new Set(next.map(item => String(item.id)));
+  const retiring = current
+    .filter(item => !nextIds.has(String(item.id)))
+    .map(item => ({ ...item, retiring: true }));
+  return [...next, ...retiring];
+};
 
 const copy = {
   en: {
@@ -54,12 +114,13 @@ const copy = {
     musicVolume: 'Music volume',
     hapticIntensity: 'FX volume',
     profileDescription: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
-    closeModal: 'Close modal'
-    ,shareWish: 'Share my wish'
-    ,shareText: 'Invite someone to add a wish to Loy Jai'
-    ,copyLink: 'Copy link'
-    ,shareNative: 'Share'
-    ,copied: 'Link copied'
+    closeModal: 'Close modal',
+    shareWish: 'Share my wish',
+    shareText: 'Invite someone to add a wish to Loy Jai',
+    copyLink: 'Copy link',
+    shareNative: 'Share',
+    copied: 'Link copied',
+    releaseOwnWish: 'Release your own wish'
   },
   th: {
     eyebrow: 'สายน้ำแห่งความหวังออนไลน์',
@@ -106,12 +167,13 @@ const copy = {
     musicVolume: 'ระดับเสียงเพลง',
     hapticIntensity: 'ระดับเสียงเอฟเฟกต์',
     profileDescription: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
-    closeModal: 'ปิดหน้าต่าง'
-    ,shareWish: 'แชร์คำอธิษฐาน'
-    ,shareText: 'เชิญคนใกล้ชิดมาร่วมตั้งคำอธิษฐานบนลอยใจ'
-    ,copyLink: 'คัดลอกลิงก์'
-    ,shareNative: 'แชร์'
-    ,copied: 'คัดลอกลิงก์แล้ว'
+    closeModal: 'ปิดหน้าต่าง',
+    shareWish: 'แชร์คำอธิษฐาน',
+    shareText: 'เชิญคนใกล้ชิดมาร่วมตั้งคำอธิษฐานบนลอยใจ',
+    copyLink: 'คัดลอกลิงก์',
+    shareNative: 'แชร์',
+    copied: 'คัดลอกลิงก์แล้ว',
+    releaseOwnWish: 'ส่งคำอธิษฐานของคุณ'
   },
   zh: {
     eyebrow: '承载愿望的数字河流',
@@ -165,7 +227,8 @@ const copy = {
     shareText: '邀请亲友在 Loy Jai 添加他们的愿望',
     copyLink: '复制链接',
     shareNative: '分享',
-    copied: '链接已复制'
+    copied: '链接已复制',
+    releaseOwnWish: '许下你自己的愿望'
   }
 };
 
@@ -177,12 +240,9 @@ const languageOptions = [
 
 function App() {
   const [lanterns, setLanterns] = useState([]);
-  const [lanternCount, setLanternCount] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ name: '', wish: '', form: 'lantern', style: 'traditional', glow: 'gold' });
-  const [selectedLantern, setSelectedLantern] = useState(null);
   const [krathongs, setKrathongs] = useState([]);
-  const [krathongCount, setKrathongCount] = useState(0);
   const [showKrathongForm, setShowKrathongForm] = useState(false);
   const [krathongFormData, setKrathongFormData] = useState({ name: '', wish: '', form: 'krathong', base: 'banana', candle: 'gold', incense: 'classic', accent: 'pink' });
   const [soundEnabled, setSoundEnabled] = useState(() => {
@@ -194,8 +254,12 @@ function App() {
   const [hapticIntensity, setHapticIntensity] = useState(() => Number(localStorage.getItem('hapticIntensity') ?? 75));
   const [showSettings, setShowSettings] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [stats, setStats] = useState({ total: 0, lanterns: 0, krathongs: 0 });
   const [shareWish, setShareWish] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [apiError, setApiError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState('');
   const [language, setLanguage] = useState(() => localStorage.getItem('language') || 'en');
   const [showLanguages, setShowLanguages] = useState(false);
   const [celebrations, setCelebrations] = useState([]);
@@ -205,6 +269,11 @@ function App() {
   const selectedLanguage = languageOptions.find(option => option.code === language) || languageOptions[0];
   const bgAudioRef = useRef(null);
   const fxAudioContextRef = useRef(null);
+
+  const refreshStats = useCallback(async () => {
+    const nextStats = await requestApi('/api/stats');
+    setStats(nextStats);
+  }, []);
 
   const getBackgroundAudio = () => {
     if (!bgAudioRef.current) {
@@ -268,15 +337,68 @@ function App() {
     localStorage.setItem('language', language);
   }, [language]);
 
+  const refreshWishes = useCallback(async () => {
+    const [krathongRows, lanternRows, nextStats] = await Promise.all([
+      requestApi('/api/wishes?item_type=krathong&limit=50'),
+      requestApi('/api/wishes?item_type=lantern&limit=50'),
+      requestApi('/api/stats')
+    ]);
+
+    setKrathongs(current => mergeWishSample(current, shuffle(krathongRows).slice(0, 50).map((wish, index) => createFloatingWish(wish, index))));
+    setLanterns(current => mergeWishSample(current, shuffle(lanternRows).slice(0, 50).map((wish, index) => createFloatingWish(wish, index))));
+    setStats(nextStats);
+    setApiError('');
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const refresh = () => {
+      refreshWishes().catch(error => {
+        if (active) setApiError(error.message);
+      });
+    };
+
+    refresh();
+    const interval = window.setInterval(refresh, 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [refreshWishes]);
+
+  useEffect(() => {
+    const retiringLanternIds = lanterns.filter(item => item.retiring).map(item => String(item.id));
+    const retiringKrathongIds = krathongs.filter(item => item.retiring).map(item => String(item.id));
+    if (!retiringLanternIds.length && !retiringKrathongIds.length) return undefined;
+
+    const timeout = window.setTimeout(() => {
+      setLanterns(current => current.filter(item => !item.retiring || !retiringLanternIds.includes(String(item.id))));
+      setKrathongs(current => current.filter(item => !item.retiring || !retiringKrathongIds.includes(String(item.id))));
+    }, 750);
+    return () => window.clearTimeout(timeout);
+  }, [lanterns, krathongs]);
+
   useEffect(() => {
     const wishId = new URLSearchParams(window.location.search).get('wish');
     if (!wishId) return;
-    const savedLanterns = JSON.parse(localStorage.getItem('lanterns')) || [];
-    const savedKrathongs = JSON.parse(localStorage.getItem('krathongs')) || [];
-    const match = [...savedLanterns, ...savedKrathongs].find(item =>
-      String(item.id) === wishId || item.shareId === wishId
-    );
-    if (match) setShareWish(match);
+    let active = true;
+    requestApi(`/api/wishes/${encodeURIComponent(wishId)}`)
+      .then(wish => {
+        if (!active) return;
+        const featured = createFloatingWish(wish, 0, true);
+        if (wish.item_type === 'lantern') {
+          setLanterns(current => [featured, ...current.filter(item => String(item.id) !== String(featured.id))].slice(0, 50));
+        } else {
+          setKrathongs(current => [featured, ...current.filter(item => String(item.id) !== String(featured.id))].slice(0, 50));
+        }
+        setShareWish(featured);
+      })
+      .catch(error => {
+        if (active) setApiError(error.message);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -401,68 +523,38 @@ function App() {
     )));
   }, []);
 
-  // Load from localStorage on initial render
-  useEffect(() => {
-    const savedCount = parseInt(localStorage.getItem('lanternCount')) || 0;
-    const savedLanterns = JSON.parse(localStorage.getItem('lanterns')) || [];
-    const loopingLanterns = savedLanterns.map(lantern => ({
-      ...lantern,
-      form: lantern.form || 'lantern',
-      phase: 'looping',
-      topOff: Math.round(window.innerHeight * 0.42),
-      hidden: false,
-      xPosition: lantern.xPosition ?? Math.floor(Math.random() * 70) + 15
-    }));
-    const savedKrathongs = JSON.parse(localStorage.getItem('krathongs')) || [];
-    const loopingKrathongs = savedKrathongs.map(krathong => ({
-      ...krathong,
-      form: krathong.form || 'krathong',
-      phase: 'looping'
-    }));
-
-    setLanternCount(savedCount);
-    setLanterns(loopingLanterns);
-    setKrathongCount(parseInt(localStorage.getItem('krathongCount')) || loopingKrathongs.length);
-    setKrathongs(loopingKrathongs);
-  }, []);
-
-  // Save to localStorage whenever lanterns or count change
-  useEffect(() => {
-    localStorage.setItem('lanternCount', lanternCount);
-    localStorage.setItem('lanterns', JSON.stringify(lanterns));
-  }, [lanternCount, lanterns]);
-
-  useEffect(() => {
-    localStorage.setItem('krathongCount', krathongCount);
-    localStorage.setItem('krathongs', JSON.stringify(krathongs));
-  }, [krathongCount, krathongs]);
-
-  const handleReleaseLantern = (name, wish, customization = {}) => {
-    const newId = lanternCount + 1;
-    const shareId = `lantern-${newId}-${Date.now().toString(36)}`;
-    const newLantern = {
-      id: newId,
-      shareId,
-      name: name,
-      wish: wish,
-      form: 'lantern',
-      customization: {
-        style: customization.style || 'traditional',
-        glow: customization.glow || 'gold'
-      },
-      releaseSize: lanternCount === 0 ? 'large' : 'small',
-      topOff: Math.round(window.innerHeight * 0.54),
-      xPosition: 50,
-      phase: 'large',
-      hidden: false
-    };
-
-    setLanterns(previousLanterns => [...previousLanterns, newLantern]);
-    setLanternCount(newId);
-    setShowForm(false);
-    setFormData({ name: '', wish: '', form: 'lantern', style: 'traditional', glow: 'gold' });
-    setShareWish(newLantern);
-    triggerCelebration();
+  const handleReleaseLantern = async (name, wish, customization = {}) => {
+    setSubmitting(true);
+    setSubmissionError('');
+    try {
+      const savedWish = await requestApi('/api/wishes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          item_type: 'lantern',
+          sender_name: name,
+          wish_text: wish,
+          customization
+        })
+      });
+      const item = {
+        ...createFloatingWish(savedWish, 0, true),
+        phase: 'large',
+        releaseSize: stats.lanterns === 0 ? 'large' : 'small',
+        topOff: Math.round(window.innerHeight * 0.54),
+        xPosition: 50
+      };
+      setLanterns(current => [item, ...current.filter(existing => !existing.retiring)].slice(0, 50));
+      setShowForm(false);
+      setFormData({ name: '', wish: '', form: 'lantern', style: 'traditional', glow: 'gold' });
+      setShareWish(item);
+      triggerCelebration();
+      refreshStats().catch(error => setApiError(error.message));
+    } catch (error) {
+      setSubmissionError(error.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleToggleForm = () => {
@@ -473,36 +565,36 @@ function App() {
     setShowKrathongForm(!showKrathongForm);
   };
 
-  const handleCreateKrathong = (name, wish, customization = {}) => {
-    const newId = krathongCount + 1;
-    const shareId = `krathong-${newId}-${Date.now().toString(36)}`;
-    setKrathongs(previousKrathongs => [...previousKrathongs, {
-      id: newId,
-      shareId,
-      name,
-      wish,
-      form: 'krathong',
-      customization: {
-        base: customization.base || 'banana',
-        candle: customization.candle || 'gold',
-        incense: customization.incense || 'classic',
-        accent: customization.accent || 'pink'
-      },
-      phase: 'new'
-    }]);
-    setKrathongCount(newId);
-    setShowKrathongForm(false);
-    setKrathongFormData({ name: '', wish: '', form: 'krathong', base: 'banana', candle: 'gold', incense: 'classic', accent: 'pink' });
-    setShareWish({
-      id: newId,
-      shareId,
-      name,
-      wish,
-      form: 'krathong',
-      customization,
-      phase: 'new'
-    });
-    triggerCelebration();
+  const handleCreateKrathong = async (name, wish, customization = {}) => {
+    setSubmitting(true);
+    setSubmissionError('');
+    try {
+      const savedWish = await requestApi('/api/wishes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          item_type: 'krathong',
+          sender_name: name,
+          wish_text: wish,
+          customization
+        })
+      });
+      const item = {
+        ...createFloatingWish(savedWish, 0, true),
+        phase: 'new',
+        xPosition: 50
+      };
+      setKrathongs(current => [item, ...current.filter(existing => !existing.retiring)].slice(0, 50));
+      setShowKrathongForm(false);
+      setKrathongFormData({ name: '', wish: '', form: 'krathong', base: 'banana', candle: 'gold', incense: 'classic', accent: 'pink' });
+      setShareWish(item);
+      triggerCelebration();
+      refreshStats().catch(error => setApiError(error.message));
+    } catch (error) {
+      setSubmissionError(error.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const festivalItems = [
@@ -534,13 +626,9 @@ function App() {
     );
   };
 
-  const wishesFloating = lanternCount + krathongCount;
-
   const getShareUrl = (item) => {
-    const url = new URL(window.location.href);
-    url.search = '';
-    url.searchParams.set('wish', item.shareId || String(item.id));
-    return url.toString();
+    if (!SHARE_BASE_URL) throw new Error('VITE_API_BASE_URL is not configured.');
+    return `${SHARE_BASE_URL}/w/${encodeURIComponent(item.id)}`;
   };
 
   const shareWishLink = async (item) => {
@@ -584,6 +672,12 @@ function App() {
   return (
     <>
       <Background />
+      {apiError && (
+        <div className="api-error" role="status">
+          <span>{apiError}</span>
+          <button type="button" aria-label="Dismiss error" onClick={() => setApiError('')}>×</button>
+        </div>
+      )}
       {celebrations.map(id => (
         <Celebration
           key={id}
@@ -595,7 +689,7 @@ function App() {
         <header className="app-header">
           <div className="top-vignette">
             <div className="wish-counter">
-              <strong>{wishesFloating}</strong>
+              <strong>{stats.total}</strong>
               <span>{labels.wishesTonight}</span>
             </div>
             <h1 className="site-title">{labels.title}</h1>
@@ -708,6 +802,8 @@ function App() {
                 onSubmit={handleReleaseLantern}
                 labels={labels}
                 language={language}
+                submitting={submitting}
+                error={submissionError}
               />
             </div>
         </Popup>
@@ -721,6 +817,8 @@ function App() {
                 onToggleForm={handleToggleKrathongForm}
                 labels={labels}
                 language={language}
+                submitting={submitting}
+                error={submissionError}
               />
             </div>
         </Popup>
@@ -754,6 +852,17 @@ function App() {
                   {copiedLink ? labels.copied : labels.copyLink}
                 </button>
               </div>
+              <button
+                type="button"
+                className="share-own-wish"
+                onClick={() => {
+                  const isLantern = shareWish.form === 'lantern';
+                  setShareWish(null);
+                  setSubmissionError('');
+                  if (isLantern) setShowForm(true);
+                  else setShowKrathongForm(true);
+                }}
+              >{labels.releaseOwnWish}</button>
             </section>
           )}
         </Popup>

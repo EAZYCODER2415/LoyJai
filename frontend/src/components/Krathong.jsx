@@ -52,10 +52,11 @@ const Krathong = ({ krathong, onComplete, onShare }) => {
     let animationFrame;
     let fadeTimeout;
     let fadeInTimeout;
+    let animationStartTimeout;
     const isNew = krathong.phase === 'new';
     const startTime = performance.now();
-    const startX = isNew ? 50 : -12;
-    let baseY = getRiverSpawnY();
+    const startX = isNew ? 50 : krathong.xPosition ?? -12;
+    let baseY = krathong.topOff ?? getRiverSpawnY();
     let startedGlide = !isNew;
     let currentX = startX;
     let previousTime = startTime;
@@ -104,7 +105,13 @@ const Krathong = ({ krathong, onComplete, onShare }) => {
             element.classList.add('krathong-fade-in');
             fadeInTimeout = window.setTimeout(() => {
               element.classList.remove('krathong-fade-in');
-              animationFrame = requestAnimationFrame(animate);
+              if (isNew) {
+                animationFrame = requestAnimationFrame(animate);
+              } else {
+                animationStartTimeout = window.setTimeout(() => {
+                  animationFrame = requestAnimationFrame(animate);
+                }, krathong.animationDelayMs || 0);
+              }
             }, 700);
           }, 700);
           return;
@@ -120,8 +127,9 @@ const Krathong = ({ krathong, onComplete, onShare }) => {
       cancelAnimationFrame(animationFrame);
       window.clearTimeout(fadeTimeout);
       window.clearTimeout(fadeInTimeout);
+      window.clearTimeout(animationStartTimeout);
     };
-  }, [krathong.id, krathong.phase, onComplete]);
+  }, [krathong.id, krathong.phase, krathong.xPosition, krathong.topOff, krathong.animationDelayMs, onComplete]);
 
   const openWish = () => {
     if (onShare) onShare(krathong);
@@ -137,7 +145,7 @@ const Krathong = ({ krathong, onComplete, onShare }) => {
   return (
     <div
       ref={krathongRef}
-      className={`krathong krathong-base-${krathong.customization?.base || 'banana'} krathong-incense-${krathong.customization?.incense || 'classic'} ${krathong.phase === 'new' ? 'is-new' : 'is-looping'}`}
+      className={`krathong krathong-base-${krathong.customization?.base || 'banana'} krathong-incense-${krathong.customization?.incense || 'classic'} ${krathong.phase === 'new' ? 'is-new' : 'is-looping'}${krathong.featured ? ' is-featured' : ''}${krathong.retiring ? ' is-retiring' : ''}`}
       role="button"
       aria-label={`Krathong by ${krathong.name}`}
       tabIndex="0"

@@ -1,13 +1,17 @@
 ### DATABASE_URL=postgresql://your_user:your_password@ep-your-project-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
-### FRONTEND_ORIGIN=http://localhost:5173
+### FRONTEND_ORIGIN=http://localhost:3000
 
+import html
+import json
 import os
 from contextlib import asynccontextmanager
 from typing import Literal, Optional
+from urllib.parse import quote, urljoin
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, RedirectResponse
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
@@ -26,8 +30,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Loy Jai API", version="1.0.0", lifespan=lifespan)
 
 allowed_origins = [
-    os.getenv("FRONTEND_ORIGIN", "http://localhost:5173"),
-    "http://127.0.0.1:5173",
+    os.getenv("FRONTEND_ORIGIN", "http://localhost:3000"),
+    "http://127.0.0.1:3000",
 ]
 
 app.add_middleware(
@@ -46,7 +50,7 @@ async def health_check():
 
 @app.get("/api/wishes", response_model=list[WishResponse])
 async def get_wishes(
-    limit: int = Query(default=50, ge=1, le=200),
+    limit: int = Query(default=50, ge=1, le=50),
     item_type: Optional[Literal["lantern", "krathong"]] = None,
 ):
     async with pool.connection() as conn:
@@ -74,6 +78,74 @@ async def get_wishes(
                 )
             rows = await cur.fetchall()
             return rows
+
+
+@app.get("/w/{wish_id}", response_class=HTMLResponse)
+async def wish_preview(wish_id: str, request: Request):
+    try:
+        wish_uuid = UUID(wish_id)
+    except ValueError:
+        frontend_origin = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000").rstrip("/") + "/"
+        return RedirectResponse(frontend_origin, status_code=302)
+
+    async with pool.connection() as conn:
+        async with conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute(
+                """
+                SELECT id, item_type, sender_name, wish_text
+                FROM wishes
+                WHERE id = %s
+                """,
+                (wish_uuid,),
+            )
+            wish = await cur.fetchone()
+
+    frontend_origin = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000").rstrip("/") + "/"
+    if not wish:
+        return RedirectResponse(frontend_origin, status_code=302)
+
+    sender = html.escape(wish["sender_name"], quote=True)
+    wish_text = html.escape(wish["wish_text"], quote=True)
+    item_label = (
+        "ลอยกระทง (floated a krathong)"
+        if wish["item_type"] == "krathong"
+        else "ปล่อยโคมลอย (released a lantern)"
+    )
+    title = f"{sender} {item_label} on ลอยใจ (Loy Jai)"
+    preview_url = html.escape(str(request.url), quote=True)
+    redirect_url = urljoin(frontend_origin, f"?wish={quote(str(wish_uuid))}")
+    safe_redirect_url = json.dumps(redirect_url).replace("<", "\\u003c")
+    image_url = html.escape(
+        os.getenv("OG_IMAGE_URL", urljoin(frontend_origin, "images/skyline.png")),
+        quote=True,
+    )
+
+    page = f"""<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{title}</title>
+  <meta name="description" content="{wish_text}">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{title}">
+  <meta property="og:description" content="{wish_text}">
+  <meta property="og:url" content="{preview_url}">
+  <meta property="og:image" content="{image_url}">
+  <meta property="og:site_name" content="ลอยใจ (Loy Jai)">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{title}">
+  <meta name="twitter:description" content="{wish_text}">
+  <meta name="twitter:image" content="{image_url}">
+  <meta http-equiv="refresh" content="0;url={html.escape(redirect_url, quote=True)}">
+</head>
+<body>
+  <p>{title}</p>
+  <p>{wish_text}</p>
+  <script>window.location.replace({safe_redirect_url});</script>
+</body>
+</html>"""
+    return HTMLResponse(page)
 
 
 @app.post("/api/wishes", response_model=WishResponse, status_code=201)

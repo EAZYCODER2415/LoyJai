@@ -146,3 +146,12 @@ All original functionality has been verified to work identically:
 - Responsive design maintains original breakpoints
 
 The application is now ready for continued development with improved maintainability and scalability.
+
+## PostgreSQL API integration
+
+The React app reads and writes wishes through the FastAPI service. Copy
+`frontend/.env.example` to `frontend/.env.local` and set `VITE_API_BASE_URL` to
+the public API origin. `VITE_SHARE_BASE_URL` is optional and defaults to the API
+origin; it should point at the host serving `/w/{wish_id}` previews. Configure
+the backend's `DATABASE_URL` and `FRONTEND_ORIGIN` as well. Restart Vite after
+changing frontend environment variables.

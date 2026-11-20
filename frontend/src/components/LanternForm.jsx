@@ -1,6 +1,6 @@
 import React from 'react';
 
-const LanternForm = ({ showForm, onToggleForm, formData, onFormChange, onSubmit, labels, language }) => {
+const LanternForm = ({ showForm, onToggleForm, formData, onFormChange, onSubmit, labels, language, submitting, error }) => {
   const handleSubmit = (event) => {
     event.preventDefault();
     onSubmit(formData.name, formData.wish, { style: formData.style, glow: formData.glow });
@@ -104,9 +104,10 @@ const LanternForm = ({ showForm, onToggleForm, formData, onFormChange, onSubmit,
           onChange={handleInputChange}
         />
         <div className="builder-actions">
-          <button type="button" className="quick-release" onClick={handleQuickRelease}>{labels.quickRelease}</button>
-          <input type="submit" value={labels.lanternSubmit} />
+          <button type="button" className="quick-release" onClick={handleQuickRelease} disabled={submitting}>{labels.quickRelease}</button>
+          <input type="submit" value={submitting ? 'Saving…' : labels.lanternSubmit} disabled={submitting} />
         </div>
+        {error && <p className="submit-error" role="alert">{error}</p>}
       </div>
       <button className="form-cancel" type="button" onClick={onToggleForm}>
         {labels.cancel}

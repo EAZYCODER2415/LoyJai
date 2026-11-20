@@ -38,6 +38,7 @@ const Lantern = ({ lantern, onFadeComplete, onLanternClick }) => {
     let fadeInTimeout;
     let glowTimeout;
     let ascentTimeout;
+    let animationStartTimeout;
     let isFading = false;
     const isLooping = lantern.phase === 'looping';
 
@@ -46,6 +47,9 @@ const Lantern = ({ lantern, onFadeComplete, onLanternClick }) => {
       fadeInTimeout = window.setTimeout(() => {
         lanternRef.current?.classList.remove('is-fading-in');
       }, 700);
+      animationStartTimeout = window.setTimeout(() => {
+        animationFrame = requestAnimationFrame(animateLantern);
+      }, lantern.animationDelayMs || 0);
     }
 
     if (!isLooping && lanternRef.current) {
@@ -91,18 +95,15 @@ const Lantern = ({ lantern, onFadeComplete, onLanternClick }) => {
       animationFrame = requestAnimationFrame(animateLantern);
     };
 
-    if (isLooping) {
-      animationFrame = requestAnimationFrame(animateLantern);
-    }
-
     return () => {
       cancelAnimationFrame(animationFrame);
       window.clearTimeout(fadeTimeout);
       window.clearTimeout(fadeInTimeout);
       window.clearTimeout(glowTimeout);
       window.clearTimeout(ascentTimeout);
+      window.clearTimeout(animationStartTimeout);
     };
-  }, [lantern, onFadeComplete]);
+  }, [lantern.id, lantern.phase, lantern.topOff, lantern.animationDelayMs, onFadeComplete]);
 
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
@@ -113,7 +114,7 @@ const Lantern = ({ lantern, onFadeComplete, onLanternClick }) => {
 
   return (
     <div
-      className={`lantern lantern-${lantern.customization?.style || 'traditional'} lantern-glow-${lantern.customization?.glow || 'gold'} ${lantern.phase === 'looping' ? 'is-looping' : 'is-large'}${lantern.releaseSize === 'small' ? ' is-small-release' : ''}`}
+      className={`lantern lantern-${lantern.customization?.style || 'traditional'} lantern-glow-${lantern.customization?.glow || 'gold'} ${lantern.phase === 'looping' ? 'is-looping' : 'is-large'}${lantern.releaseSize === 'small' ? ' is-small-release' : ''}${lantern.featured ? ' is-featured' : ''}${lantern.retiring ? ' is-retiring' : ''}`}
       ref={lanternRef}
       tabIndex="0"
       aria-label={`Lantern by ${lantern.name}`}

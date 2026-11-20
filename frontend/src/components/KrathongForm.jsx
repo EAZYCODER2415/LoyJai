@@ -1,6 +1,6 @@
 import React from 'react';
 
-const KrathongForm = ({ formData, onFormChange, onSubmit, onToggleForm, labels, language }) => {
+const KrathongForm = ({ formData, onFormChange, onSubmit, onToggleForm, labels, language, submitting, error }) => {
   const handleSubmit = (event) => {
     event.preventDefault();
     onSubmit(formData.name, formData.wish, formData);
@@ -128,9 +128,10 @@ const KrathongForm = ({ formData, onFormChange, onSubmit, onToggleForm, labels, 
           onChange={handleInputChange}
         />
         <div className="builder-actions">
-          <button type="button" className="quick-release" onClick={handleQuickRelease}>{labels.quickRelease}</button>
-          <input type="submit" value={labels.krathongSubmit} />
+          <button type="button" className="quick-release" onClick={handleQuickRelease} disabled={submitting}>{labels.quickRelease}</button>
+          <input type="submit" value={submitting ? 'Saving…' : labels.krathongSubmit} disabled={submitting} />
         </div>
+        {error && <p className="submit-error" role="alert">{error}</p>}
       </div>
       <button className="form-cancel" type="button" onClick={onToggleForm}>
         {labels.cancel}
