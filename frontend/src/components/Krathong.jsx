@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { clampSceneValue, getRiverBounds, getRiverSpawnY } from '../sceneBounds.js';
 
 const KrathongSprite = ({ accent = '#f49aaa', candle = '#f5be57', base = 'banana' }) => (
   <svg viewBox="0 0 240 190" role="img" aria-label="Illuminated Loy Krathong">
@@ -63,10 +64,9 @@ export const KrathongFlowers = ({ accent = '#f49aaa' }) => (
   </g>
 );
 
-const getRiverSpawnY = () => window.innerHeight * (0.48 + Math.random() * 0.2);
 const getPerspectiveScale = (y) => Math.max(0.78, Math.min(1, 0.78 + (y / window.innerHeight) * 0.22));
 
-const Krathong = ({ krathong, onComplete, onShare }) => {
+const Krathong = ({ krathong, isFocused = false, onComplete, onShare }) => {
   const krathongRef = useRef(null);
 
   useEffect(() => {
@@ -79,13 +79,24 @@ const Krathong = ({ krathong, onComplete, onShare }) => {
     let animationStartTimeout;
     const isNew = krathong.phase === 'new';
     const startTime = performance.now();
-    const startX = isNew ? 50 : krathong.xPosition ?? -12;
-    let baseY = krathong.topOff ?? getRiverSpawnY();
+    let bounds = getRiverBounds();
+    const startX = isNew ? 50 : krathong.xPosition ?? bounds.min;
+    let baseY = clampSceneValue(krathong.topOff ?? getRiverSpawnY(), bounds.minY, bounds.maxY);
     let startedGlide = !isNew;
-    let currentX = startX;
+    let currentX = clampSceneValue(startX, bounds.min, bounds.max);
     let previousTime = startTime;
 
-    element.style.left = `${startX}%`;
+    const handleResize = () => {
+      bounds = getRiverBounds();
+      currentX = clampSceneValue(currentX, bounds.min, bounds.max);
+      baseY = clampSceneValue(baseY, bounds.minY, bounds.maxY);
+      element.style.left = `${currentX}%`;
+      element.style.top = `${baseY}px`;
+      element.style.transform = `translate(-50%, -50%) scale(${getPerspectiveScale(baseY)})`;
+    };
+
+    window.addEventListener('resize', handleResize);
+    element.style.left = `${currentX}%`;
     element.style.top = `${baseY}px`;
     element.style.transform = `translate(-50%, -50%) scale(${getPerspectiveScale(baseY)})`;
     element.classList.add(isNew ? 'krathong-entering' : 'krathong-fade-in');
@@ -110,7 +121,7 @@ const Krathong = ({ krathong, onComplete, onShare }) => {
         element.style.top = `${y}px`;
         element.style.transform = `translate(-50%, -50%) scale(${getPerspectiveScale(y)})`;
 
-        if (x >= 112) {
+        if (x >= bounds.max) {
           element.classList.remove('krathong-entering', 'krathong-fade-in');
           element.classList.add('krathong-fade-out');
           fadeTimeout = window.setTimeout(() => {
@@ -119,7 +130,8 @@ const Krathong = ({ krathong, onComplete, onShare }) => {
               return;
             }
 
-            currentX = -12;
+            bounds = getRiverBounds();
+            currentX = bounds.min;
             baseY = getRiverSpawnY();
             previousTime = performance.now();
             element.style.left = `${currentX}%`;
@@ -152,6 +164,7 @@ const Krathong = ({ krathong, onComplete, onShare }) => {
       window.clearTimeout(fadeTimeout);
       window.clearTimeout(fadeInTimeout);
       window.clearTimeout(animationStartTimeout);
+      window.removeEventListener('resize', handleResize);
     };
   }, [krathong.id, krathong.phase, krathong.xPosition, krathong.topOff, krathong.animationDelayMs, onComplete]);
 
@@ -169,7 +182,7 @@ const Krathong = ({ krathong, onComplete, onShare }) => {
   return (
     <div
       ref={krathongRef}
-      className={`krathong krathong-base-${krathong.customization?.base || 'banana'} krathong-incense-${krathong.customization?.incense || 'classic'} ${krathong.phase === 'new' ? 'is-new' : 'is-looping'}${krathong.featured ? ' is-featured' : ''}${krathong.retiring ? ' is-retiring' : ''}`}
+      className={`krathong krathong-base-${krathong.customization?.base || 'banana'} krathong-incense-${krathong.customization?.incense || 'classic'} ${krathong.phase === 'new' ? 'is-new' : 'is-looping'}${krathong.featured ? ' is-featured' : ''}${krathong.isMine ? ' is-mine' : ''}${isFocused ? ' is-focused' : ''}${krathong.retiring ? ' is-retiring' : ''}`}
       role="button"
       aria-label={`Krathong by ${krathong.name}`}
       tabIndex="0"

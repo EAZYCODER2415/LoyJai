@@ -6,9 +6,18 @@ import KrathongForm from './components/KrathongForm.jsx';
 import Popup from './components/Popup.jsx';
 import Celebration from './components/Celebration.jsx';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  getHorizontalBounds,
+  getLanternBounds,
+  getLanternSpawnY,
+  getRiverBounds,
+  getRiverSpawnY
+} from './sceneBounds.js';
 const backgroundTrack = `${import.meta.env.BASE_URL}assets/loy-krathong.mp3`;
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const SHARE_BASE_URL = (import.meta.env.VITE_SHARE_BASE_URL || API_BASE_URL).replace(/\/+$/, '');
+const TRACKED_WISHES_KEY = 'loyJaiMyWishIds';
+const GUIDE_SEEN_KEY = 'loyJaiGuideSeen';
 const SOUND_EFFECTS = {
   button: 'switch-sound.mp3',
   builder: 'pop.mp3',
@@ -30,6 +39,19 @@ const requestApi = async (path, options) => {
   return response.json();
 };
 
+export const getSharedWishId = (location = window.location) => {
+  const queryWishId = new URLSearchParams(location.search).get('wish');
+  if (queryWishId !== null) return queryWishId || null;
+
+  const encodedPathWishId = location.pathname.match(/^\/w\/([^/]+)\/?$/)?.[1];
+  if (!encodedPathWishId) return null;
+  try {
+    return decodeURIComponent(encodedPathWishId) || null;
+  } catch {
+    return null;
+  }
+};
+
 const shuffle = (items) => {
   const shuffled = [...items];
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
@@ -39,10 +61,22 @@ const shuffle = (items) => {
   return shuffled;
 };
 
+const readTrackedWishIds = () => {
+  const savedIds = localStorage.getItem(TRACKED_WISHES_KEY);
+  if (!savedIds) return [];
+  try {
+    const parsedIds = JSON.parse(savedIds);
+    return Array.isArray(parsedIds) ? parsedIds.filter(id => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
 const createFloatingWish = (wish, index = 0, featured = false) => {
   const isLantern = wish.item_type === 'lantern';
-  const skylineHeight = Math.min(Math.max(408, window.innerWidth * 0.28333), window.innerHeight * 0.85);
-  const riverHeight = Math.max(1, window.innerHeight - skylineHeight);
+  const id = String(wish.id);
+  const isMine = readTrackedWishIds().includes(id);
+  const bounds = isLantern ? getLanternBounds() : getRiverBounds();
   return {
     id: wish.id,
     form: wish.item_type,
@@ -51,12 +85,11 @@ const createFloatingWish = (wish, index = 0, featured = false) => {
     customization: wish.customization || {},
     phase: 'looping',
     featured,
-    xPosition: featured ? 50 : 8 + Math.random() * 84,
+    isMine,
+    xPosition: featured ? 50 : bounds.min + Math.random() * (bounds.max - bounds.min),
     topOff: isLantern
-      ? featured ? window.innerHeight * 0.32 : window.innerHeight * (0.12 + Math.random() * 0.32)
-      : featured
-        ? skylineHeight + riverHeight * 0.48
-        : skylineHeight + riverHeight * (0.15 + Math.random() * 0.68),
+      ? getLanternSpawnY(42, 68, featured)
+      : getRiverSpawnY(82, featured),
     animationDelayMs: featured ? 0 : (index % 50) * 35
   };
 };
@@ -65,10 +98,24 @@ const mergeWishSample = (currentItems, sampledItems) => {
   const current = currentItems.filter(item => !item.retiring);
   const byId = new Map(current.map(item => [String(item.id), item]));
   const incomingIds = new Set(sampledItems.map(item => String(item.id)));
-  const featuredItems = current.filter(item => item.featured && !incomingIds.has(String(item.id)));
+  const featuredItems = current.filter(item => (item.featured || item.isMine) && !incomingIds.has(String(item.id)));
   const next = [...featuredItems, ...sampledItems]
     .slice(0, 50)
-    .map(item => byId.get(String(item.id)) || item);
+    .map(item => {
+      const previous = byId.get(String(item.id));
+      if (!previous) return item;
+      return {
+        ...item,
+        phase: previous.phase,
+        xPosition: previous.xPosition,
+        topOff: previous.topOff,
+        animationDelayMs: previous.animationDelayMs,
+        featured: item.featured || previous.featured,
+        isMine: item.isMine || previous.isMine,
+        hidden: previous.hidden,
+        releaseSize: previous.releaseSize
+      };
+    });
   const nextIds = new Set(next.map(item => String(item.id)));
   const retiring = current
     .filter(item => !nextIds.has(String(item.id)))
@@ -85,8 +132,16 @@ const copy = {
     wishesTonight: 'wishes floating tonight',
     release: 'Release a lantern',
     create: 'Create a krathong',
-    soundOn: 'Turn sound off',
-    soundOff: 'Turn sound on',
+    soundOn: 'Turn music off',
+    soundOff: 'Turn music on',
+    fxOn: 'Turn sound effects off',
+    fxOff: 'Turn sound effects on',
+    help: 'Help',
+    findMyWish: 'Find my wish',
+    guideTitle: 'Welcome to Loy Jai',
+    guideBody: 'Release a lantern into the sky or float a krathong on the river. Tap any light or wish to read and share it. You can begin right away.',
+    skip: 'Skip',
+    start: 'Start',
     language: 'Language',
     lanternFormTitle: 'Send a wish into the night',
     lanternFormIntro: 'Your light will join the skyline above.',
@@ -145,8 +200,16 @@ const copy = {
     wishesTonight: 'ความหวังลอยอยู่คืนนี้',
     release: 'ปล่อยโคมลอย',
     create: 'สร้างกระทง',
-    soundOn: 'ปิดเสียง',
-    soundOff: 'เปิดเสียง',
+    soundOn: 'ปิดเพลง',
+    soundOff: 'เปิดเพลง',
+    fxOn: 'ปิดเสียงเอฟเฟกต์',
+    fxOff: 'เปิดเสียงเอฟเฟกต์',
+    help: 'ช่วยเหลือ',
+    findMyWish: 'ค้นหาคำอธิษฐานของฉัน',
+    guideTitle: 'ยินดีต้อนรับสู่ลอยใจ',
+    guideBody: 'ปล่อยโคมลอยสู่ท้องฟ้าหรือลอยกระทงไปตามสายน้ำ แตะแสงหรือคำอธิษฐานเพื่ออ่านและแชร์ แล้วเริ่มส่งคำอธิษฐานได้เลย',
+    skip: 'ข้าม',
+    start: 'เริ่มต้น',
     language: 'ภาษา',
     lanternFormTitle: 'ส่งคำอธิษฐานสู่นภา',
     lanternFormIntro: 'แสงของคุณจะร่วมลอยขึ้นบนนภาลัย',
@@ -207,8 +270,16 @@ const copy = {
     krathongs: '已创建水灯',
     release: '放飞天灯',
     create: '创建水灯',
-    soundOn: '关闭声音',
-    soundOff: '打开声音',
+    soundOn: '关闭音乐',
+    soundOff: '打开音乐',
+    fxOn: '关闭音效',
+    fxOff: '打开音效',
+    help: '帮助',
+    findMyWish: '找到我的愿望',
+    guideTitle: '欢迎来到 Loy Jai',
+    guideBody: '放飞一盏天灯，或在河上漂放一盏水灯。点击任意灯光或愿望即可阅读和分享。现在就可以开始。',
+    skip: '跳过',
+    start: '开始',
     language: '语言',
     lanternFormTitle: '把愿望送入夜色',
     lanternFormIntro: '让你的灯光加入夜空。',
@@ -274,6 +345,12 @@ function App() {
   const [krathongs, setKrathongs] = useState([]);
   const [showKrathongForm, setShowKrathongForm] = useState(false);
   const [krathongFormData, setKrathongFormData] = useState({ name: '', wish: '', form: 'krathong', base: 'banana', candle: 'gold', incense: 'classic', accent: 'pink' });
+  const [mineWishIds, setMineWishIds] = useState(readTrackedWishIds);
+  const [focusedWishId, setFocusedWishId] = useState(null);
+  const [showGuide, setShowGuide] = useState(() => {
+    return !getSharedWishId() && localStorage.getItem(GUIDE_SEEN_KEY) !== 'true';
+  });
+  const [historyRevision, setHistoryRevision] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(() => {
     const savedPreference = localStorage.getItem('soundEnabled');
     return savedPreference === null || savedPreference === 'true';
@@ -293,6 +370,8 @@ function App() {
   const [showLanguages, setShowLanguages] = useState(false);
   const [celebrations, setCelebrations] = useState([]);
   const nextCelebrationId = useRef(0);
+  const findWishIndexRef = useRef(0);
+  const focusTimeoutRef = useRef(null);
   const languageRef = useRef(null);
   const labels = copy[language];
   const selectedLanguage = languageOptions.find(option => option.code === language) || languageOptions[0];
@@ -300,6 +379,8 @@ function App() {
   const ambientAudioRef = useRef([]);
   const soundEffectsRef = useRef(new Map());
   const wishOffsetsRef = useRef({ lantern: 0, krathong: 0 });
+
+  useEffect(() => () => window.clearTimeout(focusTimeoutRef.current), []);
 
   const refreshStats = useCallback(async () => {
     const nextStats = await requestApi('/api/stats');
@@ -486,13 +567,26 @@ function App() {
   }, [lanterns, krathongs]);
 
   useEffect(() => {
-    const wishId = new URLSearchParams(window.location.search).get('wish');
-    if (!wishId) return;
+    const handlePopState = () => setHistoryRevision(revision => revision + 1);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    const wishId = getSharedWishId();
+    if (!wishId) {
+      setShareWish(null);
+      setFocusedWishId(null);
+      return undefined;
+    }
+
     let active = true;
+    setShareWish(null);
     requestApi(`/api/wishes/${encodeURIComponent(wishId)}`)
       .then(wish => {
         if (!active) return;
         const featured = createFloatingWish(wish, 0, true);
+        setFocusedWishId(String(featured.id));
         if (wish.item_type === 'lantern') {
           setLanterns(current => [featured, ...current.filter(item => String(item.id) !== String(featured.id))].slice(0, 50));
         } else {
@@ -506,7 +600,7 @@ function App() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [historyRevision]);
 
   useEffect(() => {
     const closeMenu = (event) => {
@@ -551,12 +645,69 @@ function App() {
     triggerCelebration();
   };
 
+  const rememberWish = (id) => {
+    const wishId = String(id);
+    const nextIds = [...new Set([...mineWishIds, wishId])];
+    setMineWishIds(nextIds);
+    try {
+      localStorage.setItem(TRACKED_WISHES_KEY, JSON.stringify(nextIds));
+    } catch (error) {
+      setApiError(`Your wish was released, but could not be saved on this device: ${error.message}`);
+    }
+  };
+
+  const focusWish = (item) => {
+    const wishId = String(item.id);
+    const isLantern = item.form === 'lantern';
+    const isLarge = isLantern && item.phase === 'large';
+    const focused = {
+      ...item,
+      featured: true,
+      isMine: true,
+      xPosition: 50,
+      topOff: isLantern
+        ? getLanternSpawnY(isLarge ? 150 : 42, isLarge ? 185 : 68, true)
+        : getRiverSpawnY(82, true)
+    };
+    if (isLantern) {
+      setLanterns(current => [focused, ...current.filter(wish => String(wish.id) !== wishId)].slice(0, 50));
+    } else {
+      setKrathongs(current => [focused, ...current.filter(wish => String(wish.id) !== wishId)].slice(0, 50));
+    }
+    setFocusedWishId(wishId);
+    window.clearTimeout(focusTimeoutRef.current);
+    focusTimeoutRef.current = window.setTimeout(() => setFocusedWishId(null), 6000);
+  };
+
+  const handleFindMyWish = async () => {
+    if (!mineWishIds.length) return;
+    const index = findWishIndexRef.current % mineWishIds.length;
+    findWishIndexRef.current = index + 1;
+    const wishId = mineWishIds[index];
+    const item = [...lanterns, ...krathongs].find(wish => String(wish.id) === wishId);
+    if (item) {
+      focusWish(item);
+      return;
+    }
+    try {
+      const wish = await requestApi(`/api/wishes/${encodeURIComponent(wishId)}`);
+      focusWish(createFloatingWish(wish, 0, true));
+    } catch (error) {
+      setApiError(error.message);
+    }
+  };
+
+  const dismissGuide = () => {
+    localStorage.setItem(GUIDE_SEEN_KEY, 'true');
+    setShowGuide(false);
+  };
+
   const handleFadeComplete = useCallback((id) => {
     setLanterns(previousLanterns => previousLanterns.map(item => (
       item.id === id ? {
         ...item,
         phase: 'looping',
-        topOff: Math.round(window.innerHeight * 0.42),
+        topOff: getLanternSpawnY(42, 68, true),
         hidden: false
       } : item
     )));
@@ -564,7 +715,9 @@ function App() {
 
   const handleKrathongComplete = useCallback((id) => {
     setKrathongs(previousKrathongs => previousKrathongs.map(item => (
-      item.id === id ? { ...item, phase: 'looping', xPosition: -12 } : item
+      item.id === id
+        ? { ...item, phase: 'looping', xPosition: getRiverBounds(82).min }
+        : item
     )));
   }, []);
 
@@ -582,14 +735,20 @@ function App() {
           customization
         })
       });
+      rememberWish(savedWish.id);
+      const releaseSize = stats.lanterns === 0 ? 'large' : 'small';
       const item = {
         ...createFloatingWish(savedWish, 0, true),
         phase: 'large',
-        releaseSize: stats.lanterns === 0 ? 'large' : 'small',
-        topOff: Math.round(window.innerHeight * 0.54),
+        releaseSize,
+        isMine: true,
+        topOff: getLanternSpawnY(releaseSize === 'large' ? 150 : 42, releaseSize === 'large' ? 185 : 68, true),
         xPosition: 50
       };
       setLanterns(current => [item, ...current.filter(existing => !existing.retiring)].slice(0, 50));
+      setFocusedWishId(String(item.id));
+      window.clearTimeout(focusTimeoutRef.current);
+      focusTimeoutRef.current = window.setTimeout(() => setFocusedWishId(null), 6000);
       setShowForm(false);
       setFormData({ name: '', wish: '', form: 'lantern', style: 'traditional', glow: 'gold' });
       setShareWish(item);
@@ -625,12 +784,17 @@ function App() {
           customization
         })
       });
+      rememberWish(savedWish.id);
       const item = {
         ...createFloatingWish(savedWish, 0, true),
         phase: 'new',
+        isMine: true,
         xPosition: 50
       };
       setKrathongs(current => [item, ...current.filter(existing => !existing.retiring)].slice(0, 50));
+      setFocusedWishId(String(item.id));
+      window.clearTimeout(focusTimeoutRef.current);
+      focusTimeoutRef.current = window.setTimeout(() => setFocusedWishId(null), 6000);
       setShowKrathongForm(false);
       setKrathongFormData({ name: '', wish: '', form: 'krathong', base: 'banana', candle: 'gold', incense: 'classic', accent: 'pink' });
       setShareWish(item);
@@ -657,6 +821,7 @@ function App() {
         <Krathong
           key={`krathong-${item.id}`}
           krathong={item}
+          isFocused={String(item.id) === focusedWishId}
           onComplete={handleKrathongComplete}
           onShare={handleFestivalItemClick}
         />
@@ -667,6 +832,7 @@ function App() {
       <Lantern
         key={`lantern-${item.id}`}
         lantern={item}
+        isFocused={String(item.id) === focusedWishId}
         onFadeComplete={handleFadeComplete}
         onLanternClick={handleFestivalItemClick}
       />
@@ -778,7 +944,17 @@ function App() {
                 aria-pressed={soundEnabled}
                 onClick={toggleSound}
               >
-                <span aria-hidden="true">{soundEnabled ? '◖))' : '◖×)'}</span>
+                <span aria-hidden="true">{soundEnabled ? '♫' : '♪'}</span>
+              </button>
+              <button
+                className="utility-button"
+                type="button"
+                aria-label={soundsEnabled ? labels.fxOn : labels.fxOff}
+                title={soundsEnabled ? labels.fxOn : labels.fxOff}
+                aria-pressed={soundsEnabled}
+                onClick={togglesounds}
+              >
+                <span aria-hidden="true">{soundsEnabled ? '🔊' : '🔇'}</span>
               </button>
               <div className="language-control" ref={languageRef}>
                 <button
@@ -820,6 +996,15 @@ function App() {
               <button
                 className="utility-button"
                 type="button"
+                aria-label={labels.help}
+                title={labels.help}
+                onClick={() => setShowGuide(true)}
+              >
+                <span aria-hidden="true">?</span>
+              </button>
+              <button
+                className="utility-button"
+                type="button"
                 aria-label={labels.profile}
                 title={labels.profile}
                 onClick={() => setShowProfile(true)}
@@ -829,6 +1014,16 @@ function App() {
             </div>
           </div>
         </header>
+        {mineWishIds.length > 0 && (
+          <button
+            type="button"
+            className="find-wish-button"
+            onClick={handleFindMyWish}
+          >
+            <span aria-hidden="true">✧</span>
+            {labels.findMyWish}
+          </button>
+        )}
 
         <div className="large-lantern-layer">
           {festivalItems
@@ -941,6 +1136,30 @@ function App() {
               >{labels.releaseOwnWish}</button>
             </section>
           )}
+        </Popup>
+
+        <Popup show={showGuide} onClose={dismissGuide} className="lantern-form-overlay guide-overlay">
+          <section
+            className="guide-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="guide-title"
+          >
+            <button
+              type="button"
+              className="share-close"
+              aria-label={labels.closeModal}
+              onClick={dismissGuide}
+            >×</button>
+            <div className="share-mini-preview" aria-hidden="true">🏮</div>
+            <div className="detail-kicker">{labels.help}</div>
+            <h2 id="guide-title">{labels.guideTitle}</h2>
+            <p>{labels.guideBody}</p>
+            <div className="guide-actions">
+              <button type="button" className="share-copy" onClick={dismissGuide}>{labels.skip}</button>
+              <button type="button" className="share-native" onClick={dismissGuide}>{labels.start}</button>
+            </div>
+          </section>
         </Popup>
 
         <Popup show={showSettings} onClose={() => setShowSettings(false)} className="lantern-form-overlay">

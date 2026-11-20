@@ -1,25 +1,28 @@
 import React, { useEffect, useRef } from 'react';
+import { clampSceneValue, getHorizontalBounds, getLanternBounds, getLanternSpawnY } from '../sceneBounds.js';
 
-const LanternSprite = ({ glow = 'gold', style = 'traditional' }) => {
+const LanternSprite = ({ glow = 'gold', style = 'traditional', idPrefix }) => {
+  const glowId = `${idPrefix}-glow`;
+  const paperId = `${idPrefix}-paper`;
   const flame = glow === 'pink' ? '#ff9cba' : glow === 'white' ? '#fff6cc' : '#ffc75a';
   return (
     <svg viewBox="0 0 180 230" role="img" aria-label="Illuminated sky lantern">
       <defs>
-        <radialGradient id="lanternGlow" cx="50%" cy="55%" r="55%">
+        <radialGradient id={glowId} cx="50%" cy="55%" r="55%">
           <stop offset="0" stopColor={flame} stopOpacity=".95" />
           <stop offset=".7" stopColor={flame} stopOpacity=".48" />
           <stop offset="1" stopColor={flame} stopOpacity="0" />
         </radialGradient>
-        <linearGradient id="lanternPaper" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={paperId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor={glow === 'pink' ? '#ffb4a8' : glow === 'white' ? '#fff8df' : '#ffaf45'} />
           <stop offset="1" stopColor={glow === 'pink' ? '#dd6f87' : glow === 'white' ? '#e8c96e' : '#ed7429'} />
         </linearGradient>
       </defs>
-      <ellipse cx="90" cy="118" rx="78" ry="104" fill="url(#lanternGlow)" />
+      <ellipse cx="90" cy="118" rx="78" ry="104" fill={`url(#${glowId})`} />
       {style === 'crystal' ? (
         <path d="M90 18L142 62l-18 124H56L38 62z" fill="rgba(255,255,255,.22)" stroke={flame} strokeWidth="4" />
       ) : (
-        <path d="M90 18c35 0 52 32 48 70l-12 98H54L42 88c-4-38 13-70 48-70z" fill="url(#lanternPaper)" stroke="#ffe4a0" strokeWidth="3" />
+        <path d="M90 18c35 0 52 32 48 70l-12 98H54L42 88c-4-38 13-70 48-70z" fill={`url(#${paperId})`} stroke="#ffe4a0" strokeWidth="3" />
       )}
       <path d="M54 186h72l-8 18H62z" fill="#5d3d31" />
       <rect x="78" y="166" width="24" height="21" rx="3" fill="#f7dd73" />
@@ -28,11 +31,16 @@ const LanternSprite = ({ glow = 'gold', style = 'traditional' }) => {
   );
 };
 
-const Lantern = ({ lantern, onFadeComplete, onLanternClick }) => {
+const Lantern = ({ lantern, isFocused = false, onFadeComplete, onLanternClick }) => {
   const lanternRef = useRef(null);
 
   useEffect(() => {
-    let currentTop = lantern.topOff;
+    const isLooping = lantern.phase === 'looping';
+    const itemWidth = isLooping || lantern.releaseSize === 'small' ? 42 : 150;
+    const itemHeight = itemWidth === 42 ? 68 : 185;
+    let bounds = getLanternBounds(itemWidth, itemHeight);
+    let currentTop = clampSceneValue(lantern.topOff, bounds.minY, bounds.maxY);
+    let currentLeft = clampSceneValue(lantern.xPosition ?? 50, bounds.min, bounds.max);
     let animationFrame;
     let fadeTimeout;
     let fadeInTimeout;
@@ -40,7 +48,17 @@ const Lantern = ({ lantern, onFadeComplete, onLanternClick }) => {
     let ascentTimeout;
     let animationStartTimeout;
     let isFading = false;
-    const isLooping = lantern.phase === 'looping';
+    const handleResize = () => {
+      bounds = getLanternBounds(itemWidth, itemHeight);
+      currentTop = clampSceneValue(currentTop, bounds.minY, bounds.maxY);
+      currentLeft = clampSceneValue(currentLeft, bounds.min, bounds.max);
+      lanternRef.current?.style.setProperty('top', `${currentTop}px`);
+      lanternRef.current?.style.setProperty('left', `${currentLeft}%`);
+    };
+
+    lanternRef.current?.style.setProperty('top', `${currentTop}px`);
+    lanternRef.current?.style.setProperty('left', `${currentLeft}%`);
+    window.addEventListener('resize', handleResize);
 
     if (isLooping && lanternRef.current) {
       lanternRef.current.classList.add('is-fading-in');
@@ -67,26 +85,28 @@ const Lantern = ({ lantern, onFadeComplete, onLanternClick }) => {
     const animateLantern = () => {
       if (!lanternRef.current) return;
 
-      if (isLooping && currentTop <= 0 && !isFading) {
+      if (isLooping && currentTop <= bounds.minY + 1 && !isFading) {
         isFading = true;
         lanternRef.current.classList.add('is-fading-out');
         fadeTimeout = window.setTimeout(() => {
-          currentTop = window.innerHeight * 0.42;
+          currentTop = getLanternSpawnY(42, 68, true);
+          const xBounds = getHorizontalBounds(42);
+          currentLeft = xBounds.min + Math.random() * (xBounds.max - xBounds.min);
           lanternRef.current?.style.setProperty('top', `${currentTop}px`);
-          lanternRef.current?.style.setProperty('left', `${Math.floor(Math.random() * 70) + 15}%`);
+          lanternRef.current?.style.setProperty('left', `${currentLeft}%`);
           lanternRef.current?.classList.remove('is-fading-out');
           lanternRef.current?.classList.add('is-fading-in');
-          window.setTimeout(() => lanternRef.current?.classList.remove('is-fading-in'), 700);
+          fadeInTimeout = window.setTimeout(() => lanternRef.current?.classList.remove('is-fading-in'), 700);
           isFading = false;
           animationFrame = requestAnimationFrame(animateLantern);
         }, 700);
         return;
       }
 
-      currentTop -= isLooping ? 0.0875 : 0.2;
+      currentTop = Math.max(bounds.minY, currentTop - (isLooping ? 0.0875 : 0.2));
       lanternRef.current.style.top = `${currentTop}px`;
 
-      if (!isLooping && currentTop < -100) {
+      if (!isLooping && currentTop <= bounds.minY) {
         lanternRef.current.classList.add('is-fading');
         fadeTimeout = window.setTimeout(() => onFadeComplete(lantern.id), 700);
         return;
@@ -102,6 +122,7 @@ const Lantern = ({ lantern, onFadeComplete, onLanternClick }) => {
       window.clearTimeout(glowTimeout);
       window.clearTimeout(ascentTimeout);
       window.clearTimeout(animationStartTimeout);
+      window.removeEventListener('resize', handleResize);
     };
   }, [lantern.id, lantern.phase, lantern.topOff, lantern.animationDelayMs, onFadeComplete]);
 
@@ -114,7 +135,7 @@ const Lantern = ({ lantern, onFadeComplete, onLanternClick }) => {
 
   return (
     <div
-      className={`lantern lantern-${lantern.customization?.style || 'traditional'} lantern-glow-${lantern.customization?.glow || 'gold'} ${lantern.phase === 'looping' ? 'is-looping' : 'is-large'}${lantern.releaseSize === 'small' ? ' is-small-release' : ''}${lantern.featured ? ' is-featured' : ''}${lantern.retiring ? ' is-retiring' : ''}`}
+      className={`lantern lantern-${lantern.customization?.style || 'traditional'} lantern-glow-${lantern.customization?.glow || 'gold'} ${lantern.phase === 'looping' ? 'is-looping' : 'is-large'}${lantern.releaseSize === 'small' ? ' is-small-release' : ''}${lantern.featured ? ' is-featured' : ''}${lantern.isMine ? ' is-mine' : ''}${isFocused ? ' is-focused' : ''}${lantern.retiring ? ' is-retiring' : ''}`}
       ref={lanternRef}
       tabIndex="0"
       aria-label={`Lantern by ${lantern.name}`}
@@ -135,6 +156,7 @@ const Lantern = ({ lantern, onFadeComplete, onLanternClick }) => {
         <LanternSprite
           glow={lantern.customization?.glow}
           style={lantern.customization?.style}
+          idPrefix={`lantern-${String(lantern.id).replace(/[^a-zA-Z0-9_-]/g, '')}`}
         />
       </div>
     </div>

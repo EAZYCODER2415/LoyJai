@@ -42,6 +42,11 @@ body {
     .popup-overlay > * {
         animation-duration: 1ms !important;
     }
+
+    .lantern.is-focused,
+    .krathong.is-focused {
+        animation: none;
+    }
 }
 
 .celebration-layer {
@@ -298,7 +303,7 @@ div.background, div.background::after {
 }
 
 div.background {
-    --skyline-height: min(max(408px, 28.333vw), 85vh);
+    --skyline-height: min(max(408px, 28.333vw), 85dvh, max(160px, calc(100dvh - 350px)));
     z-index: 0;
     overflow: hidden;
     background: #081b36;
@@ -580,7 +585,22 @@ div.lantern.is-looping:focus-visible {
 }
 
 div.lantern.is-featured {
-    filter: brightness(1.65) drop-shadow(0 0 14px rgba(255, 220, 111, .95)) drop-shadow(0 0 34px rgba(255, 196, 74, .82));
+    filter: brightness(1.65) drop-shadow(0 0 14px rgba(255, 220, 111, .95)) drop-shadow(0 0 34px rgba(255, 196, 74, .82)) !important;
+}
+
+div.lantern.is-mine:not(.is-featured) {
+    filter: drop-shadow(0 0 10px rgba(255, 219, 126, .8)) drop-shadow(0 0 24px rgba(255, 190, 80, .55)) !important;
+}
+
+div.lantern.is-focused,
+.krathong.is-focused {
+    filter: brightness(1.65) drop-shadow(0 0 14px rgba(255, 233, 160, .98)) drop-shadow(0 0 38px rgba(255, 189, 73, .9)) !important;
+    animation: wish-focus-pulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes wish-focus-pulse {
+    from { opacity: .76; }
+    to { opacity: 1; }
 }
 
 div.lantern.is-fading { opacity: 0; filter: drop-shadow(0 0 0 rgba(251, 173, 40, 0)); }
@@ -702,6 +722,15 @@ div.lantern img { width: 100%; height: auto; }
     filter: brightness(1.45) drop-shadow(0 0 12px rgba(255, 220, 111, .95)) drop-shadow(0 0 30px rgba(255, 196, 74, .8));
 }
 
+.krathong.is-focused {
+    filter: brightness(1.65) drop-shadow(0 0 14px rgba(255, 233, 160, .98)) drop-shadow(0 0 38px rgba(255, 189, 73, .9));
+    animation: wish-focus-pulse 1.2s ease-in-out infinite alternate;
+}
+
+.krathong.is-mine:not(.is-featured) {
+    filter: drop-shadow(0 0 10px rgba(255, 219, 126, .8)) drop-shadow(0 0 24px rgba(255, 190, 80, .55));
+}
+
 .krathong.is-retiring {
     opacity: 0;
     pointer-events: none;
@@ -798,6 +827,70 @@ div.lantern img { width: 100%; height: auto; }
 
 .popup-overlay.is-closing > * {
     animation: popup-grow-out 560ms cubic-bezier(.55, 0, .8, .25) both;
+}
+
+.find-wish-button {
+    position: fixed;
+    top: clamp(122px, 16vh, 174px);
+    left: clamp(14px, 3vw, 36px);
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 34px;
+    padding: 6px 12px;
+    border: 1px solid rgba(255, 224, 160, .42);
+    border-radius: 999px;
+    background: rgba(8, 31, 40, .7);
+    color: #ffedc0;
+    font: inherit;
+    font-size: .75rem;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .18);
+    backdrop-filter: blur(8px);
+}
+
+.find-wish-button:hover,
+.find-wish-button:focus-visible {
+    background: rgba(245, 190, 87, .2);
+}
+
+.guide-card {
+    position: relative;
+    width: min(94vw, 430px);
+    padding: 30px;
+    border: 1px solid rgba(255, 242, 205, .2);
+    border-radius: 18px;
+    background: radial-gradient(circle at 50% 0%, rgba(40, 64, 104, .98), rgba(8, 28, 45, .98) 72%);
+    color: #fff8e9;
+    text-align: center;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, .48);
+}
+
+.guide-card h2 {
+    margin: 10px 0;
+    font-family: var(--loy-header-font);
+}
+
+.guide-card p {
+    margin: 0;
+    color: rgba(255, 248, 233, .8);
+    line-height: 1.6;
+}
+
+.guide-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 22px;
+}
+
+.guide-actions button {
+    min-height: 44px;
+    border-radius: 10px;
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
 }
 
 .top-vignette,
@@ -1440,7 +1533,7 @@ input[type='submit'] { margin-top: 4px; background: #e7aa42; color: #17313a; }
     }
     .header-controls {
         position: absolute;
-        top: 72px;
+        top: 104px;
         right: 16px;
         gap: 4px;
     }
@@ -1460,10 +1553,18 @@ input[type='submit'] { margin-top: 4px; background: #e7aa42; color: #17313a; }
     .start-buttons button { min-height: 48px; }
     .krathong { width: 72px; height: 72px; }
     .share-actions { grid-template-columns: 1fr; }
+    .find-wish-button { top: 148px; }
 }
 
 @media (max-height: 650px) and (min-width: 701px) {
     main.app-container { padding-top: 24px; padding-bottom: 24px; }
     .app-header h1 { font-size: 3.5rem; }
     .stats { margin-top: 16px; }
+}
+
+@media (max-height: 650px) {
+    main.app-container { padding-top: 12px; padding-bottom: 12px; }
+    .ui-controls { width: min(100%, 520px); }
+    .start-buttons { flex-direction: row; gap: 8px; }
+    .start-buttons button { flex: 1; min-height: 44px; }
 }
