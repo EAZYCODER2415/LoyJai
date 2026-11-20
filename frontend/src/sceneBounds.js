@@ -1,4 +1,5 @@
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+const narrowScreenFactor = (width) => clamp((1600 - width) / 1280, 0, 1);
 
 export const getSkylineHeight = () => Math.min(
   Math.max(408, window.innerWidth * 0.28333),
@@ -21,9 +22,8 @@ export const getLanternDimensions = (large = false) => {
 
 export const getLanternBounds = (itemWidth = 42, itemHeight = 68) => {
   const skylineHeight = getSkylineHeight();
-  const narrowScreenFactor = clamp((640 - window.innerWidth) / 320, 0, 1);
-  const desiredClearance = 24 + narrowScreenFactor * 72;
-  const availableClearance = Math.max(0, skylineHeight - itemHeight - 20);
+  const desiredClearance = 24 + narrowScreenFactor(window.innerWidth) * 132;
+  const availableClearance = Math.max(0, skylineHeight - itemHeight - 16);
   const riverbedClearance = Math.min(desiredClearance, availableClearance);
   const skyBottom = Math.max(0, skylineHeight - itemHeight - riverbedClearance);
   const skyTop = Math.min(skyBottom, Math.min(72, Math.max(20, skylineHeight * 0.14)));
@@ -48,7 +48,7 @@ export const getLanternInitialY = (itemWidth = 42, itemHeight = 68) => {
 export const getRiverBounds = (itemHeight = 82) => {
   const horizon = getSkylineHeight();
   const height = Math.max(1, window.visualViewport?.height || window.innerHeight);
-  const minY = horizon + itemHeight / 2 + 55;
+  const minY = horizon + itemHeight / 2 + 63;
   const controlsTop = document.querySelector('.ui-controls')?.getBoundingClientRect().top
     ?? height - 150;
   const maxY = Math.max(minY, Math.min(
@@ -66,9 +66,8 @@ export const getRiverBounds = (itemHeight = 82) => {
 
 export const getRiverSpawnY = (itemHeight = 82) => {
   const { minY, maxY } = getRiverBounds(itemHeight);
-  const narrowScreenFactor = clamp((640 - window.innerWidth) / 320, 0, 1);
-  const maxSpawnRange = 0.93 - narrowScreenFactor * 0.78;
-  const position = 0.02 + Math.random() * maxSpawnRange;
+  const rangeRatio = 1 - narrowScreenFactor(window.innerWidth) * 0.3;
+  const position = Math.random() * rangeRatio;
   return minY + (maxY - minY) * position;
 };
 
