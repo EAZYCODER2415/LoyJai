@@ -128,10 +128,6 @@ const copy = {
     shareWish: 'Share my wish',
     shareText: 'Invite someone to add a wish to Loy Jai',
     copyLink: 'Copy link',
-    copyMessage: 'Copy invite',
-    shareLink: 'Shareable wish link',
-    shareMessage: 'Ready-to-send message',
-    openDirectApp: 'Open the wish in the app',
     shareNative: 'Share',
     copied: 'Link copied',
     messageCopied: 'Message copied',
@@ -192,10 +188,6 @@ const copy = {
     shareWish: 'แชร์คำอธิษฐาน',
     shareText: 'เชิญคนใกล้ชิดมาร่วมตั้งคำอธิษฐานบนลอยใจ',
     copyLink: 'คัดลอกลิงก์',
-    copyMessage: 'คัดลอกข้อความเชิญ',
-    shareLink: 'ลิงก์คำอธิษฐาน',
-    shareMessage: 'ข้อความพร้อมส่ง',
-    openDirectApp: 'เปิดคำอธิษฐานในแอป',
     shareNative: 'แชร์',
     copied: 'คัดลอกลิงก์แล้ว',
     messageCopied: 'คัดลอกข้อความแล้ว',
@@ -258,10 +250,6 @@ const copy = {
     shareWish: '分享我的愿望',
     shareText: '邀请亲友在 Loy Jai 添加他们的愿望',
     copyLink: '复制链接',
-    copyMessage: '复制邀请内容',
-    shareLink: '愿望分享链接',
-    shareMessage: '可直接发送的邀请',
-    openDirectApp: '在应用中打开这份愿望',
     shareNative: '分享',
     copied: '链接已复制',
     messageCopied: '邀请内容已复制',
@@ -298,7 +286,6 @@ function App() {
   const [stats, setStats] = useState({ total: 0, lanterns: 0, krathongs: 0 });
   const [shareWish, setShareWish] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
-  const [copiedMessage, setCopiedMessage] = useState(false);
   const [apiError, setApiError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState('');
@@ -330,9 +317,13 @@ function App() {
 
   const getAmbientAudio = () => {
     if (!ambientAudioRef.current.length) {
+      const fxVolume = Number.isFinite(hapticIntensity)
+        ? Math.max(0, Math.min(100, hapticIntensity))
+        : 0;
       ambientAudioRef.current = ['water-flowing.mp3', 'birds-chirping.mp3'].map(file => {
         const audio = new Audio(`${import.meta.env.BASE_URL}assets/sounds/${file}`);
         audio.loop = true;
+        audio.volume = (fxVolume / 100) * (file === 'water-flowing.mp3' ? 0.48 : 0.3);
         return audio;
       });
     }
@@ -376,24 +367,25 @@ function App() {
   useEffect(() => {
     localStorage.setItem('musicVolume', String(musicVolume));
     if (bgAudioRef.current) bgAudioRef.current.volume = musicVolume / 100;
-    ambientAudioRef.current.forEach((audio, index) => {
-      audio.volume = (musicVolume / 100) * (index === 0 ? 0.48 : 0.3);
-    });
   }, [musicVolume]);
+
+  useEffect(() => {
+    const fxVolume = Number.isFinite(hapticIntensity)
+      ? Math.max(0, Math.min(100, hapticIntensity))
+      : 0;
+    ambientAudioRef.current.forEach((audio, index) => {
+      audio.volume = (fxVolume / 100) * (index === 0 ? 0.48 : 0.3);
+    });
+  }, [hapticIntensity]);
 
   useEffect(() => {
     if (!soundEnabled) {
       bgAudioRef.current?.pause();
-      ambientAudioRef.current.forEach(audio => audio.pause());
       return undefined;
     }
 
     const startPlayback = () => {
       playBackgroundAudio(getBackgroundAudio());
-      getAmbientAudio().forEach((audio, index) => {
-        audio.volume = (musicVolume / 100) * (index === 0 ? 0.48 : 0.3);
-        playBackgroundAudio(audio);
-      });
     };
 
     document.addEventListener('pointerdown', startPlayback, { once: true });
@@ -404,9 +396,29 @@ function App() {
       document.removeEventListener('pointerdown', startPlayback);
       document.removeEventListener('keydown', startPlayback);
       bgAudioRef.current?.pause();
-      ambientAudioRef.current.forEach(audio => audio.pause());
     };
   }, [soundEnabled]);
+
+  useEffect(() => {
+    if (!soundsEnabled) {
+      ambientAudioRef.current.forEach(audio => audio.pause());
+      return undefined;
+    }
+
+    const startAmbientAudio = () => {
+      getAmbientAudio().forEach(playBackgroundAudio);
+    };
+
+    document.addEventListener('pointerdown', startAmbientAudio, { once: true });
+    document.addEventListener('keydown', startAmbientAudio, { once: true });
+    startAmbientAudio();
+
+    return () => {
+      document.removeEventListener('pointerdown', startAmbientAudio);
+      document.removeEventListener('keydown', startAmbientAudio);
+      ambientAudioRef.current.forEach(audio => audio.pause());
+    };
+  }, [soundsEnabled]);
 
   useEffect(() => {
     localStorage.setItem('soundsEnabled', String(soundsEnabled));
@@ -511,13 +523,8 @@ function App() {
     setSoundEnabled(nextValue);
     if (nextValue) {
       playBackgroundAudio(getBackgroundAudio());
-      getAmbientAudio().forEach((audio, index) => {
-        audio.volume = (musicVolume / 100) * (index === 0 ? 0.48 : 0.3);
-        playBackgroundAudio(audio);
-      });
     } else {
       bgAudioRef.current?.pause();
-      ambientAudioRef.current.forEach(audio => audio.pause());
     }
   };
 
@@ -680,9 +687,9 @@ function App() {
     return url.toString();
   };
 
-  const getShareMessage = (item) => {
+  const getShareCaption = (item) => {
     const itemType = item.form === 'lantern' ? labels.lanternShareType : labels.krathongShareType;
-    return `${labels.shareMessageLead.replace('{name}', item.name).replace('{item}', itemType)}\n“${item.wish}”\n\n${labels.shareMessageInvite}\n${getShareUrl(item)}`;
+    return `${labels.shareMessageLead.replace('{name}', item.name).replace('{item}', itemType)}\n“${item.wish}”\n\n${labels.shareMessageInvite}`;
   };
 
   const shareWishLink = async (item) => {
@@ -690,14 +697,17 @@ function App() {
       try {
         await navigator.share({
           title: `Loy Jai — ${item.name}`,
-          text: getShareMessage(item)
+          text: getShareCaption(item),
+          url: getShareUrl(item)
         });
         return;
       } catch (error) {
         if (error?.name === 'AbortError') return;
       }
     }
-    await copyShareMessage(item);
+    await copyText(`${getShareCaption(item)}\n${getShareUrl(item)}`);
+    setCopiedLink(true);
+    window.setTimeout(() => setCopiedLink(false), 1800);
   };
 
   const copyText = async (text) => {
@@ -722,12 +732,6 @@ function App() {
     await copyText(url);
     setCopiedLink(true);
     window.setTimeout(() => setCopiedLink(false), 1800);
-  };
-
-  const copyShareMessage = async (item) => {
-    await copyText(getShareMessage(item));
-    setCopiedMessage(true);
-    window.setTimeout(() => setCopiedMessage(false), 1800);
   };
 
   const togglesounds = () => {
@@ -912,35 +916,16 @@ function App() {
               <div className="share-mini-preview" aria-hidden="true">
                 {shareWish.form === 'lantern' ? '🏮' : '🪷'}
               </div>
-              <img
-                className="share-card-image"
-                src={`${import.meta.env.BASE_URL}assets/images/og-preview.png`}
-                alt=""
-              />
               <div className="detail-kicker">{labels.shareWish}</div>
               <h2 id="share-wish-title">{shareWish.name}</h2>
               <p className="share-wish-text">“{shareWish.wish}”</p>
               <p className="share-wish-intro">{labels.shareText}</p>
-              <label className="share-field">
-                {labels.shareLink}
-                <input readOnly value={getShareUrl(shareWish)} onFocus={event => event.target.select()} />
-              </label>
-              <label className="share-field">
-                {labels.shareMessage}
-                <textarea readOnly rows="5" value={getShareMessage(shareWish)} onFocus={event => event.target.select()} />
-              </label>
-              <a className="share-fallback-link" href={getFallbackShareUrl(shareWish)}>
-                {labels.openDirectApp}
-              </a>
               <div className="share-actions">
                 <button type="button" className="share-native" onClick={() => shareWishLink(shareWish)}>
-                  {labels.shareNative}
+                  {copiedLink ? labels.copied : labels.shareNative}
                 </button>
                 <button type="button" className="share-copy" onClick={() => copyWishLink(shareWish)}>
                   {copiedLink ? labels.copied : labels.copyLink}
-                </button>
-                <button type="button" className="share-copy" onClick={() => copyShareMessage(shareWish)}>
-                  {copiedMessage ? labels.messageCopied : labels.copyMessage}
                 </button>
               </div>
               <button
