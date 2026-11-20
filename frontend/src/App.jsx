@@ -727,9 +727,8 @@ function App() {
     window.clearTimeout(findWishStatusTimeoutRef.current);
     setFindWishStatus('');
     setFindWishAnimation(null);
-    const trackedIds = readTrackedWishIds();
-    const wishId = localStorage.getItem(LATEST_WISH_ID_KEY) || trackedIds[trackedIds.length - 1];
-    if (!wishId) {
+    const trackedIds = new Set(readTrackedWishIds());
+    if (!trackedIds.size) {
       setFindWishStatus(labels.wishNotVisible);
       findWishStatusTimeoutRef.current = window.setTimeout(() => setFindWishStatus(''), 3800);
       return;
@@ -739,8 +738,8 @@ function App() {
     const viewportTop = viewport?.offsetTop ?? 0;
     const viewportRight = viewportLeft + (viewport?.width ?? window.innerWidth);
     const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
-    const visibleWish = Array.from(document.querySelectorAll('[data-wish-id]')).find(element => {
-      if (element.dataset.wishId !== wishId || element.classList.contains('is-retiring')) return false;
+    const visibleWishIds = [...new Set(Array.from(document.querySelectorAll('[data-wish-id]')).filter(element => {
+      if (!trackedIds.has(element.dataset.wishId) || element.classList.contains('is-retiring')) return false;
       const bounds = element.getBoundingClientRect();
       const style = window.getComputedStyle(element);
       return bounds.width > 0
@@ -752,22 +751,20 @@ function App() {
         && style.visibility !== 'hidden'
         && style.display !== 'none'
         && Number(style.opacity) > 0.05;
-    });
+    }).map(element => element.dataset.wishId))];
 
-    if (!visibleWish) {
+    if (!visibleWishIds.length) {
       setFindWishStatus(labels.wishNotVisible);
       findWishStatusTimeoutRef.current = window.setTimeout(() => setFindWishStatus(''), 3800);
       return;
     }
 
-    setFindWishAnimation({
-      wishId: visibleWish.dataset.wishId,
-      animationId: ++findWishAnimationIdRef.current
-    });
+    const animationId = ++findWishAnimationIdRef.current;
+    setFindWishAnimation(visibleWishIds.map(wishId => ({ wishId, animationId })));
   };
 
-  const handleFindWishAnimationComplete = useCallback(() => {
-    setFindWishAnimation(null);
+  const handleFindWishAnimationComplete = useCallback((wishId) => {
+    setFindWishAnimation(current => current.filter(item => item.wishId !== wishId));
   }, []);
 
   const dismissGuide = () => {
@@ -1313,13 +1310,13 @@ function App() {
               <p>{labels.profileDescription}</p>
             </section>
         </Popup>
-        {findWishAnimation && (
+        {findWishAnimation.map(({ wishId, animationId }) => (
           <FindWishHighlight
-            key={findWishAnimation.animationId}
-            wishId={findWishAnimation.wishId}
+            key={`${animationId}-${wishId}`}
+            wishId={wishId}
             onComplete={handleFindWishAnimationComplete}
           />
-        )}
+        ))}
         {findWishStatus && (
           <div className="wish-find-status" role="status" aria-live="polite">
             {findWishStatus}
