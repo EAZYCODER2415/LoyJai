@@ -500,7 +500,7 @@ function App() {
   const [apiError, setApiError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState('');
-  const [language, setLanguage] = useState(() => localStorage.getItem('language') || 'en');
+  const [language, setLanguage] = useState(() => localStorage.getItem('language') || 'th');
   const [showLanguages, setShowLanguages] = useState(false);
   const [celebrations, setCelebrations] = useState([]);
   const nextCelebrationId = useRef(0);
