@@ -145,6 +145,11 @@ const copy = {
     title: 'Loy Jai',
     creatorCredit: 'Created by student @th4mez_.adv',
     intro: 'Release a little light and share a wish.',
+    wishLoadingCaptions: [
+      "Loading everyone's wishes...",
+      'Taking a little bit longer...',
+      'One more push...'
+    ],
     wishesTonight: 'wishes floating tonight',
     release: 'Release a lantern',
     create: 'Create a krathong',
@@ -214,6 +219,11 @@ const copy = {
     title: 'ลอยใจ',
     creatorCredit: 'สร้างโดยนักศึกษา @th4mez_.adv',
     intro: 'ปล่อยแสงเล็กน้อยและแบ่งปันคำอธิษฐาน',
+    wishLoadingCaptions: [
+      'กำลังโหลดคำอธิษฐานของทุกคน...',
+      'ใช้เวลานานกว่าปกตินิดหน่อย...',
+      'อีกนิดเดียว...'
+    ],
     wishesTonight: 'ความหวังลอยอยู่คืนนี้',
     release: 'ปล่อยโคมลอย',
     create: 'สร้างกระทง',
@@ -283,6 +293,11 @@ const copy = {
     title: '水灯节',
     creatorCredit: '由学生 @th4mez_.adv 创作',
     intro: '释放一缕微光，分享一个心愿。',
+    wishLoadingCaptions: [
+      '正在加载大家的愿望...',
+      '还需要一点时间...',
+      '再等一下...'
+    ],
     wishesTonight: '愿望今晚漂浮中',
     lanterns: '已放飞天灯',
     krathongs: '已创建水灯',
@@ -355,12 +370,6 @@ const languageOptions = [
   { code: 'en', label: 'English', icon: 'EN' },
   { code: 'th', label: 'ไทย', icon: 'TH' },
   { code: 'zh', label: '中文', icon: 'CN' }
-];
-
-const WISH_LOADING_CAPTIONS = [
-  "Loading everyone's wishes...",
-  'Taking a little bit longer...',
-  'One more push...'
 ];
 
 const isWishRenderedAndVisible = (element, viewport) => {
@@ -514,10 +523,10 @@ function App() {
   useEffect(() => {
     if (hasLoadedWishes) return undefined;
     const interval = window.setInterval(() => {
-      setWishLoadingCaptionIndex(index => (index + 1) % WISH_LOADING_CAPTIONS.length);
+      setWishLoadingCaptionIndex(index => (index + 1) % labels.wishLoadingCaptions.length);
     }, 120_000);
     return () => window.clearInterval(interval);
-  }, [hasLoadedWishes]);
+  }, [hasLoadedWishes, labels.wishLoadingCaptions.length]);
 
   const refreshStats = useCallback(async () => {
     const nextStats = await requestApi('/api/stats');
@@ -1050,7 +1059,7 @@ function App() {
         <div className="wish-loading-overlay" role="status" aria-live="polite">
           <div className="wish-loading-content">
             <span className="wish-loading-spinner" aria-hidden="true" />
-            <p>{WISH_LOADING_CAPTIONS[wishLoadingCaptionIndex]}</p>
+            <p>{labels.wishLoadingCaptions[wishLoadingCaptionIndex]}</p>
           </div>
         </div>
       )}
