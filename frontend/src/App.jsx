@@ -487,7 +487,7 @@ function App() {
   const [historyRevision, setHistoryRevision] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(() => {
     const savedPreference = localStorage.getItem('soundEnabled');
-    return savedPreference === null || savedPreference === 'true';
+    return savedPreference === 'true';
   });
   const [musicVolume, setMusicVolume] = useState(() => Number(localStorage.getItem('musicVolume') ?? 70));
   const [soundsEnabled, setsoundsEnabled] = useState(() => localStorage.getItem('soundsEnabled') !== 'false');
