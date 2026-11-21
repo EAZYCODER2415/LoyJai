@@ -357,6 +357,12 @@ const languageOptions = [
   { code: 'zh', label: '中文', icon: 'CN' }
 ];
 
+const WISH_LOADING_CAPTIONS = [
+  "Loading everyone's wishes...",
+  'Taking a little bit longer...',
+  'One more push...'
+];
+
 const isWishRenderedAndVisible = (element, viewport) => {
   if (!element.isConnected || element.classList.contains('is-retiring') || element.getClientRects().length === 0) {
     return false;
@@ -467,6 +473,8 @@ function App() {
   });
   const [findWishAnimation, setFindWishAnimation] = useState([]);
   const [findWishStatus, setFindWishStatus] = useState('');
+  const [hasLoadedWishes, setHasLoadedWishes] = useState(false);
+  const [wishLoadingCaptionIndex, setWishLoadingCaptionIndex] = useState(0);
   const [historyRevision, setHistoryRevision] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(() => {
     const savedPreference = localStorage.getItem('soundEnabled');
@@ -502,6 +510,14 @@ function App() {
     window.clearTimeout(focusTimeoutRef.current);
     window.clearTimeout(findWishStatusTimeoutRef.current);
   }, []);
+
+  useEffect(() => {
+    if (hasLoadedWishes) return undefined;
+    const interval = window.setInterval(() => {
+      setWishLoadingCaptionIndex(index => (index + 1) % WISH_LOADING_CAPTIONS.length);
+    }, 120_000);
+    return () => window.clearInterval(interval);
+  }, [hasLoadedWishes]);
 
   const refreshStats = useCallback(async () => {
     const nextStats = await requestApi('/api/stats');
@@ -650,6 +666,7 @@ function App() {
     setLanterns(current => mergeWishSample(current, shuffle(lanternRows).slice(0, 50).map((wish, index) => createFloatingWish(wish, index))));
     setStats(nextStats);
     setApiError('');
+    setHasLoadedWishes(true);
   }, []);
 
   useEffect(() => {
@@ -1029,6 +1046,14 @@ function App() {
   return (
     <>
       <Background />
+      {!hasLoadedWishes && (
+        <div className="wish-loading-overlay" role="status" aria-live="polite">
+          <div className="wish-loading-content">
+            <span className="wish-loading-spinner" aria-hidden="true" />
+            <p>{WISH_LOADING_CAPTIONS[wishLoadingCaptionIndex]}</p>
+          </div>
+        </div>
+      )}
       {apiError && (
         <div className="api-error" role="status">
           <span>{apiError}</span>
