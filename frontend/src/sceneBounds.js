@@ -22,7 +22,7 @@ export const getLanternDimensions = (large = false) => {
 
 export const getLanternBounds = (itemWidth = 42, itemHeight = 68) => {
   const skylineHeight = getSkylineHeight();
-  const desiredClearance = 24 + narrowScreenFactor(window.innerWidth) * 132;
+  const desiredClearance = 24 + narrowScreenFactor(window.innerWidth) * 220;
   const availableClearance = Math.max(0, skylineHeight - itemHeight - 16);
   const riverbedClearance = Math.min(desiredClearance, availableClearance);
   const skyBottom = Math.max(0, skylineHeight - itemHeight - riverbedClearance);
@@ -66,7 +66,7 @@ export const getRiverBounds = (itemHeight = 82) => {
 
 export const getRiverSpawnY = (itemHeight = 82) => {
   const { minY, maxY } = getRiverBounds(itemHeight);
-  const rangeRatio = 1 - narrowScreenFactor(window.innerWidth) * 0.3;
+  const rangeRatio = 0.83 - narrowScreenFactor(window.innerWidth) * 0.13;
   const position = Math.random() * rangeRatio;
   return minY + (maxY - minY) * position;
 };
