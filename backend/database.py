@@ -23,8 +23,10 @@ CREATE TABLE IF NOT EXISTS wishes (
     sender_name VARCHAR(60) NOT NULL DEFAULT 'Anonymous',
     wish_text VARCHAR(280) NOT NULL,
     customization JSONB NOT NULL DEFAULT '{}'::jsonb,
+    owner_token_hash CHAR(64),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE wishes ADD COLUMN IF NOT EXISTS owner_token_hash CHAR(64);
 CREATE INDEX IF NOT EXISTS idx_wishes_created_at ON wishes (created_at DESC);
 """
 

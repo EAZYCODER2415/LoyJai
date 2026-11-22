@@ -1,6 +1,6 @@
 import React from 'react';
 
-const LanternForm = ({ showForm, onToggleForm, formData, onFormChange, onSubmit, labels, language, submitting, error }) => {
+const LanternForm = ({ showForm, onToggleForm, formData, onFormChange, onSubmit, labels, language, submitting, error, isEditing = false }) => {
   const handleSubmit = (event) => {
     event.preventDefault();
     onSubmit(formData.name, formData.wish, { style: formData.style, glow: formData.glow });
@@ -24,7 +24,7 @@ const LanternForm = ({ showForm, onToggleForm, formData, onFormChange, onSubmit,
     <form onSubmit={handleSubmit} className="form">
       <div className="builder-heading">
         <div>
-          <h1>{labels.lanternFormTitle}</h1>
+          <h1>{isEditing ? labels.lanternEditFormTitle : labels.lanternFormTitle}</h1>
           <p>{labels.lanternFormIntro}</p>
         </div>
         <button type="button" className="builder-close" aria-label={labels.closeModal} onClick={onToggleForm}>×</button>
@@ -107,7 +107,7 @@ const LanternForm = ({ showForm, onToggleForm, formData, onFormChange, onSubmit,
         />
         <div className="builder-actions">
           <button type="button" className="quick-release" onClick={handleQuickRelease} disabled={submitting}>{labels.quickRelease}</button>
-          <input type="submit" value={submitting ? 'Saving…' : labels.lanternSubmit} disabled={submitting} />
+          <input type="submit" value={submitting ? labels.savingWish : isEditing ? labels.updateWish : labels.lanternSubmit} disabled={submitting} />
         </div>
         {error && <p className="submit-error" role="alert">{error}</p>}
       </div>

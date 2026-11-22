@@ -1,7 +1,7 @@
 import React from 'react';
 import { KrathongFlowers } from './Krathong.jsx';
 
-const KrathongForm = ({ formData, onFormChange, onSubmit, onToggleForm, labels, language, submitting, error }) => {
+const KrathongForm = ({ formData, onFormChange, onSubmit, onToggleForm, labels, language, submitting, error, isEditing = false }) => {
   const handleSubmit = (event) => {
     event.preventDefault();
     onSubmit(formData.name, formData.wish, formData);
@@ -28,7 +28,7 @@ const KrathongForm = ({ formData, onFormChange, onSubmit, onToggleForm, labels, 
     <form onSubmit={handleSubmit} className="form">
       <div className="builder-heading">
         <div>
-          <h1>{labels.krathongFormTitle}</h1>
+          <h1>{isEditing ? labels.krathongEditFormTitle : labels.krathongFormTitle}</h1>
           <p>{labels.krathongFormIntro}</p>
         </div>
         <button type="button" className="builder-close" aria-label={labels.closeModal} onClick={onToggleForm}>×</button>
@@ -133,7 +133,7 @@ const KrathongForm = ({ formData, onFormChange, onSubmit, onToggleForm, labels, 
         />
         <div className="builder-actions">
           <button type="button" className="quick-release" onClick={handleQuickRelease} disabled={submitting}>{labels.quickRelease}</button>
-          <input type="submit" value={submitting ? 'Saving…' : labels.krathongSubmit} disabled={submitting} />
+          <input type="submit" value={submitting ? labels.savingWish : isEditing ? labels.updateWish : labels.krathongSubmit} disabled={submitting} />
         </div>
         {error && <p className="submit-error" role="alert">{error}</p>}
       </div>

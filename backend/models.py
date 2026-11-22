@@ -4,8 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 
-class WishCreate(BaseModel):
-    item_type: Literal["lantern", "krathong"]
+class WishContent(BaseModel):
     sender_name: str = Field(default="Anonymous", max_length=60)
     wish_text: str = Field(..., min_length=1, max_length=280)
     customization: dict[str, Any] = Field(default_factory=dict)
@@ -24,6 +23,15 @@ class WishCreate(BaseModel):
         if not cleaned:
             raise ValueError("Wish text cannot be empty.")
         return cleaned
+
+
+class WishCreate(WishContent):
+    item_type: Literal["lantern", "krathong"]
+    owner_token: str = Field(..., min_length=32, max_length=128)
+
+
+class WishUpdate(WishContent):
+    pass
 
 
 class WishResponse(BaseModel):

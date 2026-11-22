@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { clampSceneValue, getRiverBounds, getRiverSpawnY } from '../sceneBounds.js';
+import { createPausableTimeouts } from '../pausableTimeouts.js';
 
 const KrathongSprite = ({ accent = '#f49aaa', candle = '#f5be57', base = 'banana' }) => (
   <svg viewBox="0 0 240 190" role="img" aria-label="Illuminated Loy Krathong">
@@ -73,14 +74,16 @@ const Krathong = ({ krathong, isFocused = false, onComplete, onShare }) => {
     const element = krathongRef.current;
     if (!element) return undefined;
 
-    let animationFrame;
-    let fadeTimeout;
-    let fadeInTimeout;
-    let animationStartTimeout;
+    let animationFrame = null;
+    const timeouts = createPausableTimeouts();
     const isNew = krathong.phase === 'new';
     let startTime = performance.now();
     let isPaused = document.hidden;
-    let pausedAt = 0;
+    let pausedAt = isPaused ? startTime : 0;
+    let isWaitingForTransition = false;
+    let isFadingIn = false;
+    let pausedCssAnimations = [];
+    if (isPaused) timeouts.pause();
     let bounds = getRiverBounds();
     const startX = isNew ? 50 : krathong.xPosition ?? bounds.min;
     let baseY = clampSceneValue(krathong.topOff ?? getRiverSpawnY(), bounds.minY, bounds.maxY);
@@ -89,6 +92,18 @@ const Krathong = ({ krathong, isFocused = false, onComplete, onShare }) => {
     let previousTime = startTime;
     const getSpawnX = () => bounds.min + Math.random() * (bounds.max - bounds.min) * 0.12;
     const getRespawnDelay = () => 500 + Math.random() * 4500;
+    const pauseCssAnimations = () => {
+      if (typeof element.getAnimations !== 'function') return;
+      pausedCssAnimations = element.getAnimations()
+        .filter(animation => animation.playState === 'running');
+      pausedCssAnimations.forEach(animation => animation.pause());
+    };
+    const resumeCssAnimations = () => {
+      pausedCssAnimations.forEach(animation => {
+        if (animation.playState === 'paused') animation.play();
+      });
+      pausedCssAnimations = [];
+    };
 
     const handleResize = () => {
       bounds = getRiverBounds();
@@ -100,6 +115,7 @@ const Krathong = ({ krathong, isFocused = false, onComplete, onShare }) => {
     };
 
     const animate = (now) => {
+      animationFrame = null;
       if (isPaused) return;
       const elapsed = now - startTime;
       const frameScale = Math.min((now - previousTime) / (1000 / 60), 2);
@@ -121,9 +137,10 @@ const Krathong = ({ krathong, isFocused = false, onComplete, onShare }) => {
         element.style.transform = `translate(-50%, -50%) scale(${getPerspectiveScale(y)})`;
 
         if (x >= bounds.max) {
+          isWaitingForTransition = true;
           element.classList.remove('krathong-entering', 'krathong-fade-in');
           element.classList.add('krathong-fade-out');
-          fadeTimeout = window.setTimeout(() => {
+          timeouts.schedule(() => {
             if (isNew) {
               onComplete(krathong.id);
               return;
@@ -134,7 +151,7 @@ const Krathong = ({ krathong, isFocused = false, onComplete, onShare }) => {
         }
       }
 
-      animationFrame = requestAnimationFrame(animate);
+      startAnimation();
     };
 
     const beginLoopingRespawn = () => {
@@ -142,69 +159,82 @@ const Krathong = ({ krathong, isFocused = false, onComplete, onShare }) => {
       bounds = getRiverBounds();
       currentX = getSpawnX();
       baseY = getRiverSpawnY();
+      isWaitingForTransition = false;
+      isFadingIn = true;
       previousTime = performance.now();
       element.style.left = `${currentX}%`;
       element.style.top = `${baseY}px`;
       element.style.transform = `translate(-50%, -50%) scale(${getPerspectiveScale(baseY)})`;
       element.classList.remove('krathong-fade-out', 'krathong-fade-in');
       element.classList.add('krathong-fade-in');
-      fadeInTimeout = window.setTimeout(() => {
+      timeouts.schedule(() => {
         if (isPaused) return;
         element.classList.remove('krathong-fade-in');
+        isFadingIn = false;
         previousTime = performance.now();
-        animationFrame = requestAnimationFrame(animate);
+        startAnimation();
       }, 700);
     };
 
-    const queueLoopingRespawn = (restartFade = false) => {
-      if (restartFade) {
-        element.classList.remove('krathong-fade-out', 'krathong-fade-in');
-        element.classList.add('krathong-fade-out');
-      } else {
-        element.classList.add('krathong-fade-out');
-      }
-      animationStartTimeout = window.setTimeout(beginLoopingRespawn, getRespawnDelay());
+    const queueLoopingRespawn = () => {
+      isWaitingForTransition = true;
+      element.classList.add('krathong-fade-out');
+      timeouts.schedule(beginLoopingRespawn, getRespawnDelay());
+    };
+
+    const startAnimation = () => {
+      if (isPaused || isWaitingForTransition || isFadingIn || animationFrame !== null) return;
+      animationFrame = requestAnimationFrame(animate);
+    };
+
+    const pauseMotion = () => {
+      if (isPaused) return;
+      isPaused = true;
+      pausedAt = performance.now();
+      if (animationFrame !== null) cancelAnimationFrame(animationFrame);
+      animationFrame = null;
+      timeouts.pause();
+      pauseCssAnimations();
+    };
+
+    const resumeMotion = () => {
+      if (!isPaused || document.hidden) return;
+      const resumedAt = performance.now();
+      startTime += resumedAt - pausedAt;
+      isPaused = false;
+      pausedAt = 0;
+      bounds = getRiverBounds();
+      currentX = clampSceneValue(currentX, bounds.min, bounds.max);
+      baseY = clampSceneValue(baseY, bounds.minY, bounds.maxY);
+      previousTime = resumedAt;
+      timeouts.resume();
+      resumeCssAnimations();
+      startAnimation();
     };
 
     const handleVisibilityChange = () => {
-      if (document.hidden) {
-        isPaused = true;
-        pausedAt = performance.now();
-        cancelAnimationFrame(animationFrame);
-        window.clearTimeout(fadeTimeout);
-        window.clearTimeout(fadeInTimeout);
-        window.clearTimeout(animationStartTimeout);
-        return;
-      }
-
-      isPaused = false;
-      if (isNew && pausedAt) startTime += performance.now() - pausedAt;
-      pausedAt = 0;
-      bounds = getRiverBounds();
-      previousTime = performance.now();
-      if (!isNew) {
-        queueLoopingRespawn(true);
-      } else {
-        element.classList.remove('krathong-fade-out');
-        animationFrame = requestAnimationFrame(animate);
-      }
+      if (document.hidden) pauseMotion();
+      else resumeMotion();
     };
 
     window.addEventListener('resize', handleResize);
+    window.addEventListener('blur', pauseMotion);
+    window.addEventListener('focus', resumeMotion);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     element.style.left = `${currentX}%`;
     element.style.top = `${baseY}px`;
     element.style.transform = `translate(-50%, -50%) scale(${getPerspectiveScale(baseY)})`;
     element.classList.add(isNew ? 'krathong-entering' : 'krathong-fade-in');
+    if (isPaused) pauseCssAnimations();
 
-    if (!isPaused) animationFrame = requestAnimationFrame(animate);
+    startAnimation();
 
     return () => {
-      cancelAnimationFrame(animationFrame);
-      window.clearTimeout(fadeTimeout);
-      window.clearTimeout(fadeInTimeout);
-      window.clearTimeout(animationStartTimeout);
+      if (animationFrame !== null) cancelAnimationFrame(animationFrame);
+      timeouts.clearAll();
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('blur', pauseMotion);
+      window.removeEventListener('focus', resumeMotion);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [krathong.id, krathong.phase, krathong.xPosition, krathong.topOff, onComplete]);
@@ -224,7 +254,7 @@ const Krathong = ({ krathong, isFocused = false, onComplete, onShare }) => {
     <div
       ref={krathongRef}
       data-wish-id={String(krathong.id)}
-      className={`krathong krathong-base-${krathong.customization?.base || 'banana'} krathong-incense-${krathong.customization?.incense || 'classic'} ${krathong.phase === 'new' ? 'is-new' : 'is-looping'}${krathong.featured ? ' is-featured' : ''}${krathong.isMine ? ' is-mine' : ''}${isFocused ? ' is-focused' : ''}${krathong.retiring ? ' is-retiring' : ''}`}
+      className={`krathong krathong-base-${krathong.customization?.base || 'banana'} krathong-incense-${krathong.customization?.incense || 'classic'} ${krathong.phase === 'new' ? 'is-new' : 'is-looping'}${krathong.featured ? ' is-featured' : ''}${krathong.firstRelease ? ' is-first-release' : ''}${krathong.isMine ? ' is-mine' : ''}${isFocused ? ' is-focused' : ''}${krathong.retiring ? ' is-retiring' : ''}`}
       role="button"
       aria-label={`Krathong by ${krathong.name}`}
       tabIndex="0"

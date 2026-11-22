@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { clampSceneValue, getHorizontalBounds, getLanternBounds, getLanternDimensions, getLanternSpawnY } from '../sceneBounds.js';
+import { createPausableTimeouts } from '../pausableTimeouts.js';
 
 const LanternSprite = ({ glow = 'gold', style = 'traditional', idPrefix }) => {
   const glowId = `${idPrefix}-glow`;
@@ -41,13 +42,26 @@ const Lantern = ({ lantern, isFocused = false, onFadeComplete, onLanternClick })
     let bounds = getLanternBounds(itemWidth, itemHeight);
     let currentTop = clampSceneValue(lantern.topOff, bounds.minY, bounds.maxY);
     let currentLeft = clampSceneValue(lantern.xPosition ?? 50, bounds.min, bounds.max);
-    let animationFrame;
-    let fadeTimeout;
-    let fadeInTimeout;
-    let glowTimeout;
-    let ascentTimeout;
-    let animationStartTimeout;
+    let animationFrame = null;
+    const timeouts = createPausableTimeouts();
+    let isPaused = document.hidden;
     let isFading = false;
+    let isWaitingToStart = true;
+    let pausedCssAnimations = [];
+    if (isPaused) timeouts.pause();
+    const pauseCssAnimations = () => {
+      const element = lanternRef.current;
+      if (!element || typeof element.getAnimations !== 'function') return;
+      pausedCssAnimations = element.getAnimations()
+        .filter(animation => animation.playState === 'running');
+      pausedCssAnimations.forEach(animation => animation.pause());
+    };
+    const resumeCssAnimations = () => {
+      pausedCssAnimations.forEach(animation => {
+        if (animation.playState === 'paused') animation.play();
+      });
+      pausedCssAnimations = [];
+    };
     const handleResize = () => {
       ({ width: itemWidth, height: itemHeight } = getLanternDimensions(isLarge));
       bounds = getLanternBounds(itemWidth, itemHeight);
@@ -57,39 +71,14 @@ const Lantern = ({ lantern, isFocused = false, onFadeComplete, onLanternClick })
       lanternRef.current?.style.setProperty('left', `${currentLeft}%`);
     };
 
-    lanternRef.current?.style.setProperty('top', `${currentTop}px`);
-    lanternRef.current?.style.setProperty('left', `${currentLeft}%`);
-    window.addEventListener('resize', handleResize);
-
-    if (isLooping && lanternRef.current) {
-      lanternRef.current.classList.add('is-fading-in');
-      fadeInTimeout = window.setTimeout(() => {
-        lanternRef.current?.classList.remove('is-fading-in');
-      }, 700);
-      animationStartTimeout = window.setTimeout(() => {
-        animationFrame = requestAnimationFrame(animateLantern);
-      }, lantern.animationDelayMs || 0);
-    }
-
-    if (!isLooping && lanternRef.current) {
-      lanternRef.current.classList.add('is-large-entering');
-      glowTimeout = window.setTimeout(() => {
-        lanternRef.current?.classList.remove('is-large-entering');
-        lanternRef.current?.classList.add('is-large-glowing');
-      }, 700);
-      ascentTimeout = window.setTimeout(() => {
-        lanternRef.current?.classList.remove('is-large-glowing');
-        animationFrame = requestAnimationFrame(animateLantern);
-      }, 1500);
-    }
-
     const animateLantern = () => {
-      if (!lanternRef.current) return;
+      animationFrame = null;
+      if (!lanternRef.current || isPaused) return;
 
       if (currentTop <= -itemHeight && !isFading) {
         isFading = true;
         lanternRef.current.classList.add('is-fading-out');
-        fadeTimeout = window.setTimeout(() => {
+        timeouts.schedule(() => {
           if (!isLooping) {
             onFadeComplete(lantern.id);
             return;
@@ -103,9 +92,11 @@ const Lantern = ({ lantern, isFocused = false, onFadeComplete, onLanternClick })
           lanternRef.current?.style.setProperty('left', `${currentLeft}%`);
           lanternRef.current?.classList.remove('is-fading-out');
           lanternRef.current?.classList.add('is-fading-in');
-          fadeInTimeout = window.setTimeout(() => lanternRef.current?.classList.remove('is-fading-in'), 700);
-          isFading = false;
-          animationFrame = requestAnimationFrame(animateLantern);
+          timeouts.schedule(() => {
+            lanternRef.current?.classList.remove('is-fading-in');
+            isFading = false;
+            startAnimation();
+          }, 700);
         }, 700);
         return;
       }
@@ -113,17 +104,76 @@ const Lantern = ({ lantern, isFocused = false, onFadeComplete, onLanternClick })
       currentTop -= isLooping ? 0.0875 : 0.2;
       lanternRef.current.style.top = `${currentTop}px`;
 
+      startAnimation();
+    };
+
+    const startAnimation = () => {
+      if (isPaused || isFading || isWaitingToStart || animationFrame !== null) return;
       animationFrame = requestAnimationFrame(animateLantern);
     };
 
+    const pauseMotion = () => {
+      if (isPaused) return;
+      isPaused = true;
+      if (animationFrame !== null) cancelAnimationFrame(animationFrame);
+      animationFrame = null;
+      timeouts.pause();
+      pauseCssAnimations();
+    };
+
+    const resumeMotion = () => {
+      if (!isPaused || document.hidden) return;
+      isPaused = false;
+      timeouts.resume();
+      resumeCssAnimations();
+      startAnimation();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) pauseMotion();
+      else resumeMotion();
+    };
+
+    lanternRef.current?.style.setProperty('top', `${currentTop}px`);
+    lanternRef.current?.style.setProperty('left', `${currentLeft}%`);
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('blur', pauseMotion);
+    window.addEventListener('focus', resumeMotion);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    if (isLooping && lanternRef.current) {
+      lanternRef.current.classList.add('is-fading-in');
+      timeouts.schedule(() => {
+        lanternRef.current?.classList.remove('is-fading-in');
+      }, 700);
+      timeouts.schedule(() => {
+        isWaitingToStart = false;
+        startAnimation();
+      }, lantern.animationDelayMs || 0);
+    }
+
+    if (!isLooping && lanternRef.current) {
+      lanternRef.current.classList.add('is-large-entering');
+      timeouts.schedule(() => {
+        lanternRef.current?.classList.remove('is-large-entering');
+        lanternRef.current?.classList.add('is-large-glowing');
+      }, 700);
+      timeouts.schedule(() => {
+        lanternRef.current?.classList.remove('is-large-glowing');
+        isWaitingToStart = false;
+        startAnimation();
+      }, 1500);
+    }
+
+    if (isPaused) pauseCssAnimations();
+
     return () => {
-      cancelAnimationFrame(animationFrame);
-      window.clearTimeout(fadeTimeout);
-      window.clearTimeout(fadeInTimeout);
-      window.clearTimeout(glowTimeout);
-      window.clearTimeout(ascentTimeout);
-      window.clearTimeout(animationStartTimeout);
+      if (animationFrame !== null) cancelAnimationFrame(animationFrame);
+      timeouts.clearAll();
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('blur', pauseMotion);
+      window.removeEventListener('focus', resumeMotion);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [lantern.id, lantern.phase, lantern.topOff, lantern.animationDelayMs, onFadeComplete]);
 
@@ -136,7 +186,7 @@ const Lantern = ({ lantern, isFocused = false, onFadeComplete, onLanternClick })
 
   return (
     <div
-      className={`lantern lantern-${lantern.customization?.style || 'traditional'} lantern-glow-${lantern.customization?.glow || 'gold'} ${lantern.phase === 'looping' ? 'is-looping' : 'is-large'}${lantern.releaseSize === 'small' ? ' is-small-release' : ''}${lantern.featured ? ' is-featured' : ''}${lantern.isMine ? ' is-mine' : ''}${isFocused ? ' is-focused' : ''}${lantern.retiring ? ' is-retiring' : ''}`}
+      className={`lantern lantern-${lantern.customization?.style || 'traditional'} lantern-glow-${lantern.customization?.glow || 'gold'} ${lantern.phase === 'looping' ? 'is-looping' : 'is-large'}${lantern.releaseSize === 'small' ? ' is-small-release' : ''}${lantern.featured ? ' is-featured' : ''}${lantern.firstRelease ? ' is-first-release' : ''}${lantern.isMine ? ' is-mine' : ''}${isFocused ? ' is-focused' : ''}${lantern.retiring ? ' is-retiring' : ''}`}
       ref={lanternRef}
       data-wish-id={String(lantern.id)}
       tabIndex="0"

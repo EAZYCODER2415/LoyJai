@@ -16,7 +16,7 @@ export const getHorizontalBounds = (itemWidth) => {
 
 export const getLanternDimensions = (large = false) => {
   const width = large
-    ? clamp(window.innerWidth * 0.16, 104, 150)
+    ? clamp(window.innerWidth * 0.32, 140, 190)
     : clamp(window.innerWidth * 0.032, 28, 42);
   return { width, height: width * (230 / 180) };
 };
@@ -25,7 +25,7 @@ export const getLanternBounds = (itemWidth = 42, itemHeight = 68) => {
   const skylineBottom = document.querySelector('.background > .top')?.getBoundingClientRect().bottom
     ?? getSkylineHeight();
   const widthFactor = lanternNarrowScreenFactor(window.innerWidth);
-  const desiredClearance = 24 + widthFactor * 48;
+  const desiredClearance = 24 - widthFactor * 8;
   const availableClearance = Math.max(0, skylineBottom - itemHeight - 16);
   const riverbedClearance = Math.min(desiredClearance, availableClearance);
   const skyBottom = Math.max(0, skylineBottom - itemHeight - riverbedClearance);
@@ -42,6 +42,11 @@ export const getLanternSpawnY = (itemWidth = 42, itemHeight = 68, featured = fal
   const { minY, maxY } = getLanternBounds(itemWidth, itemHeight);
   const position = featured ? 0.96 : 0.88 + Math.random() * 0.12;
   return minY + (maxY - minY) * position;
+};
+
+export const getLanternCenterY = (itemWidth = 42, itemHeight = 68) => {
+  const { minY, maxY } = getLanternBounds(itemWidth, itemHeight);
+  return minY + (maxY - minY) / 2;
 };
 
 export const getLanternInitialY = (itemWidth = 42, itemHeight = 68) => {
@@ -73,6 +78,11 @@ export const getRiverSpawnY = (itemHeight = 82) => {
   const rangeRatio = 0.83 - narrowScreenFactor(window.innerWidth) * 0.13;
   const position = Math.random() * rangeRatio;
   return minY + (maxY - minY) * position;
+};
+
+export const getRiverCenterY = (itemHeight = 82) => {
+  const { minY, maxY } = getRiverBounds(itemHeight);
+  return minY + (maxY - minY) / 2;
 };
 
 export const getRiverInitialX = (itemWidth = 82) => {

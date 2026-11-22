@@ -9,10 +9,12 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   getHorizontalBounds,
   getLanternBounds,
+  getLanternCenterY as getLanternBoundsCenterY,
   getLanternDimensions,
   getLanternInitialY,
   getLanternSpawnY,
   getRiverInitialX,
+  getRiverCenterY,
   getRiverBounds,
   getRiverSpawnY
 } from './sceneBounds.js';
@@ -20,6 +22,7 @@ const backgroundTrack = `${import.meta.env.BASE_URL}assets/loy-krathong.mp3`;
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const SHARE_BASE_URL = (import.meta.env.VITE_SHARE_BASE_URL || API_BASE_URL).replace(/\/+$/, '');
 const TRACKED_WISHES_KEY = 'loyJaiMyWishIds';
+const WISH_OWNER_TOKENS_KEY = 'loyJaiWishOwnerTokens';
 const LATEST_WISH_ID_KEY = 'loyJaiLatestWishId';
 const GUIDE_SEEN_KEY = 'loyJaiGuideSeen';
 const SOUND_EFFECTS = {
@@ -40,6 +43,7 @@ const requestApi = async (path, options) => {
     const body = await response.json().catch(() => null);
     throw new Error(body?.detail || `API request failed (${response.status}).`);
   }
+  if (response.status === 204) return null;
   return response.json();
 };
 
@@ -74,6 +78,28 @@ const readTrackedWishIds = () => {
   } catch {
     return [];
   }
+};
+
+const readWishOwnerTokens = () => {
+  try {
+    const savedTokens = JSON.parse(localStorage.getItem(WISH_OWNER_TOKENS_KEY) || '{}');
+    return savedTokens && typeof savedTokens === 'object' && !Array.isArray(savedTokens)
+      ? savedTokens
+      : {};
+  } catch {
+    return {};
+  }
+};
+
+const makeWishOwnerToken = () => {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+};
+
+const getLanternCenterPosition = (large = false) => {
+  const size = getLanternDimensions(large);
+  return getLanternBoundsCenterY(size.width, size.height);
 };
 
 const getLanternSpawnPosition = (large = false, featured = false) => {
@@ -127,6 +153,7 @@ const mergeWishSample = (currentItems, sampledItems) => {
         topOff: previous.topOff,
         animationDelayMs: previous.animationDelayMs,
         featured: item.featured || previous.featured,
+        firstRelease: item.firstRelease || previous.firstRelease,
         isMine: item.isMine || previous.isMine,
         hidden: previous.hidden,
         releaseSize: previous.releaseSize
@@ -159,6 +186,21 @@ const copy = {
     fxOff: 'Turn sound effects on',
     help: 'Help',
     findMyWish: 'Find my wish',
+    findWishHint: 'Tap here to highlight your wishes floating in the scene.',
+    editWish: 'Edit wish',
+    updateWish: 'Save changes',
+    savingWish: 'Saving…',
+    undoDeleteWish: 'Undo / delete',
+    confirmDeleteWish: 'Delete this wish?',
+    deleteWish: 'Delete wish',
+    keepWish: 'Keep wish',
+    wishOwnerError: 'This wish cannot be edited on this device. Open it on the device where it was sent.',
+    wishSubmitted: 'Your wish has been sent.',
+    wishActionIntro: 'You can edit or undo this wish until it first floats away.',
+    lanternActionCount: 'Editable lantern wishes: {count}',
+    krathongActionCount: 'Editable krathong wishes: {count}',
+    lanternEditFormTitle: 'Edit your lantern wish',
+    krathongEditFormTitle: 'Edit your krathong wish',
     wishNotVisible: 'Your wish is not on screen right now. Try again in a little while.',
     guideTitle: 'Welcome to Loy Jai',
     guideBody: 'Release a lantern into the sky or float a krathong on the river. Tap any light or wish to read and share it. You can begin right away.',
@@ -233,6 +275,21 @@ const copy = {
     fxOff: 'เปิดเสียงเอฟเฟกต์',
     help: 'ช่วยเหลือ',
     findMyWish: 'ค้นหาคำอธิษฐานของฉัน',
+    findWishHint: 'แตะที่นี่เพื่อไฮไลต์คำอธิษฐานของคุณที่กำลังลอยอยู่',
+    editWish: 'แก้ไขคำอธิษฐาน',
+    updateWish: 'บันทึกการแก้ไข',
+    savingWish: 'กำลังบันทึก…',
+    undoDeleteWish: 'ยกเลิก / ลบ',
+    confirmDeleteWish: 'ต้องการลบคำอธิษฐานนี้หรือไม่?',
+    deleteWish: 'ลบคำอธิษฐาน',
+    keepWish: 'เก็บคำอธิษฐานไว้',
+    wishOwnerError: 'ไม่สามารถแก้ไขคำอธิษฐานนี้บนอุปกรณ์นี้ได้ โปรดเปิดบนอุปกรณ์ที่ใช้ส่งคำอธิษฐาน',
+    wishSubmitted: 'ส่งคำอธิษฐานของคุณแล้ว',
+    wishActionIntro: 'แก้ไขหรือยกเลิกคำอธิษฐานนี้ได้ก่อนที่ชิ้นงานจะลอยไปครั้งแรก',
+    lanternActionCount: 'คำอธิษฐานบนโคมลอยที่แก้ไขได้: {count}',
+    krathongActionCount: 'คำอธิษฐานบนกระทงที่แก้ไขได้: {count}',
+    lanternEditFormTitle: 'แก้ไขคำอธิษฐานบนโคมลอย',
+    krathongEditFormTitle: 'แก้ไขคำอธิษฐานบนกระทง',
     wishNotVisible: 'ตอนนี้คำอธิษฐานของคุณไม่อยู่บนหน้าจอ ลองค้นหาอีกครั้งในอีกสักครู่',
     guideTitle: 'ยินดีต้อนรับสู่ลอยใจ',
     guideBody: 'ปล่อยโคมลอยสู่ท้องฟ้าหรือลอยกระทงไปตามสายน้ำ แตะแสงหรือคำอธิษฐานเพื่ออ่านและแชร์ แล้วเริ่มส่งคำอธิษฐานได้เลย',
@@ -309,6 +366,21 @@ const copy = {
     fxOff: '打开音效',
     help: '帮助',
     findMyWish: '找到我的愿望',
+    findWishHint: '点击这里高亮场景中漂浮的愿望。',
+    editWish: '编辑愿望',
+    updateWish: '保存更改',
+    savingWish: '正在保存…',
+    undoDeleteWish: '撤回 / 删除',
+    confirmDeleteWish: '确定删除这份愿望吗？',
+    deleteWish: '删除愿望',
+    keepWish: '保留愿望',
+    wishOwnerError: '此设备无法编辑这份愿望。请在发送愿望的设备上打开。',
+    wishSubmitted: '愿望已发送。',
+    wishActionIntro: '愿望首次漂走前，你可以编辑或撤回。',
+    lanternActionCount: '可编辑的天灯愿望：{count}',
+    krathongActionCount: '可编辑的水灯愿望：{count}',
+    lanternEditFormTitle: '编辑天灯愿望',
+    krathongEditFormTitle: '编辑水灯愿望',
     wishNotVisible: '你的愿望目前不在屏幕上，请稍后再试。',
     guideTitle: '欢迎来到 Loy Jai',
     guideBody: '放飞一盏天灯，或在河上漂放一盏水灯。点击任意灯光或愿望即可阅读和分享。现在就可以开始。',
@@ -476,12 +548,16 @@ function App() {
   const [showKrathongForm, setShowKrathongForm] = useState(false);
   const [krathongFormData, setKrathongFormData] = useState({ name: '', wish: '', form: 'krathong', base: 'banana', candle: 'gold', incense: 'classic', accent: 'pink' });
   const [mineWishIds, setMineWishIds] = useState(readTrackedWishIds);
+  const [activeWishActions, setActiveWishActions] = useState([]);
+  const [editingWishId, setEditingWishId] = useState(null);
+  const [confirmDeleteWishId, setConfirmDeleteWishId] = useState(null);
   const [focusedWishId, setFocusedWishId] = useState(null);
   const [showGuide, setShowGuide] = useState(() => {
     return !getSharedWishId() && localStorage.getItem(GUIDE_SEEN_KEY) !== 'true';
   });
   const [findWishAnimation, setFindWishAnimation] = useState([]);
   const [findWishStatus, setFindWishStatus] = useState('');
+  const [showFindWishCue, setShowFindWishCue] = useState(false);
   const [hasLoadedWishes, setHasLoadedWishes] = useState(false);
   const [wishLoadingCaptionIndex, setWishLoadingCaptionIndex] = useState(0);
   const [historyRevision, setHistoryRevision] = useState(0);
@@ -506,6 +582,7 @@ function App() {
   const nextCelebrationId = useRef(0);
   const focusTimeoutRef = useRef(null);
   const findWishStatusTimeoutRef = useRef(null);
+  const findWishCueTimeoutRef = useRef(null);
   const findWishAnimationIdRef = useRef(0);
   const languageRef = useRef(null);
   const labels = copy[language];
@@ -518,6 +595,7 @@ function App() {
   useEffect(() => () => {
     window.clearTimeout(focusTimeoutRef.current);
     window.clearTimeout(findWishStatusTimeoutRef.current);
+    window.clearTimeout(findWishCueTimeoutRef.current);
   }, []);
 
   useEffect(() => {
@@ -792,17 +870,58 @@ function App() {
     triggerCelebration();
   };
 
-  const rememberWish = (id) => {
+  const rememberWish = (id, ownerToken) => {
     const wishId = String(id);
     const nextIds = [wishId, ...new Set(mineWishIds.filter(savedId => savedId !== wishId))];
     setMineWishIds(nextIds);
     try {
       localStorage.setItem(LATEST_WISH_ID_KEY, wishId);
       localStorage.setItem(TRACKED_WISHES_KEY, JSON.stringify(nextIds));
+      const ownerTokens = readWishOwnerTokens();
+      ownerTokens[wishId] = ownerToken;
+      localStorage.setItem(WISH_OWNER_TOKENS_KEY, JSON.stringify(ownerTokens));
     } catch (error) {
       setApiError(`Your wish was released, but could not be saved on this device: ${error.message}`);
     }
   };
+
+  const forgetWishOwnerToken = (id) => {
+    try {
+      const ownerTokens = readWishOwnerTokens();
+      delete ownerTokens[String(id)];
+      localStorage.setItem(WISH_OWNER_TOKENS_KEY, JSON.stringify(ownerTokens));
+    } catch (error) {
+      setApiError(`Could not clear this wish's edit access on this device: ${error.message}`);
+    }
+  };
+
+  const showFindWishCueForAWhile = () => {
+    setShowFindWishCue(true);
+    window.clearTimeout(findWishCueTimeoutRef.current);
+    findWishCueTimeoutRef.current = window.setTimeout(() => setShowFindWishCue(false), 12_000);
+  };
+
+  const closeShareWish = () => {
+    if (shareWish && activeWishActions.some(action => String(action.id) === String(shareWish.id))) {
+      showFindWishCueForAWhile();
+    }
+    setShareWish(null);
+    setConfirmDeleteWishId(null);
+  };
+
+  const expireWishAction = useCallback((id) => {
+    const wishId = String(id);
+    setActiveWishActions(current => current.filter(action => String(action.id) !== wishId));
+    try {
+      const ownerTokens = readWishOwnerTokens();
+      delete ownerTokens[wishId];
+      localStorage.setItem(WISH_OWNER_TOKENS_KEY, JSON.stringify(ownerTokens));
+    } catch (error) {
+      setApiError(`Could not clear this wish's edit access on this device: ${error.message}`);
+    }
+    setShareWish(current => String(current?.id) === wishId ? null : current);
+    showFindWishCueForAWhile();
+  }, []);
 
   const handleFindMyWish = () => {
     window.clearTimeout(findWishStatusTimeoutRef.current);
@@ -846,28 +965,101 @@ function App() {
   };
 
   const handleFadeComplete = useCallback((id) => {
+    expireWishAction(id);
     setLanterns(previousLanterns => previousLanterns.map(item => (
       item.id === id ? {
         ...item,
         phase: 'looping',
         topOff: getLanternSpawnPosition(false, true),
-        hidden: false
+        hidden: false,
+        featured: false,
+        firstRelease: false
       } : item
     )));
-  }, []);
+  }, [expireWishAction]);
 
   const handleKrathongComplete = useCallback((id) => {
+    expireWishAction(id);
     setKrathongs(previousKrathongs => previousKrathongs.map(item => (
       item.id === id
-        ? { ...item, phase: 'looping', xPosition: getRiverBounds(82).min }
+        ? { ...item, phase: 'looping', xPosition: getRiverBounds(82).min, featured: false, firstRelease: false }
         : item
     )));
-  }, []);
+  }, [expireWishAction]);
+
+  const openWishEditor = (item) => {
+    setEditingWishId(String(item.id));
+    setSubmissionError('');
+    setConfirmDeleteWishId(null);
+    if (item.form === 'lantern') {
+      setFormData({
+        name: item.name,
+        wish: item.wish,
+        form: 'lantern',
+        style: item.customization?.style || 'traditional',
+        glow: item.customization?.glow || 'gold'
+      });
+      setShowKrathongForm(false);
+      setShowForm(true);
+    } else {
+      setKrathongFormData({
+        name: item.name,
+        wish: item.wish,
+        form: 'krathong',
+        base: item.customization?.base || 'banana',
+        candle: item.customization?.candle || 'gold',
+        incense: item.customization?.incense || 'classic',
+        accent: item.customization?.accent || 'pink'
+      });
+      setShowForm(false);
+      setShowKrathongForm(true);
+    }
+    setShareWish(null);
+  };
+
+  const syncEditedWish = (savedWish, fallbackItem) => {
+    const wishId = String(savedWish.id);
+    const item = {
+      ...fallbackItem,
+      name: savedWish.sender_name,
+      wish: savedWish.wish_text,
+      customization: savedWish.customization
+    };
+    if (savedWish.item_type === 'lantern') {
+      setLanterns(current => current.map(existing => String(existing.id) === wishId ? item : existing));
+    } else {
+      setKrathongs(current => current.map(existing => String(existing.id) === wishId ? item : existing));
+    }
+    setActiveWishActions(current => current.map(action => (
+      String(action.id) === wishId
+        ? { ...action, name: item.name, wish: item.wish, customization: item.customization }
+        : action
+    )));
+    setShareWish(item);
+    setEditingWishId(null);
+    setShowForm(false);
+    setShowKrathongForm(false);
+  };
 
   const handleReleaseLantern = async (name, wish, customization = {}) => {
     setSubmitting(true);
     setSubmissionError('');
     try {
+      if (editingWishId) {
+        const ownerToken = readWishOwnerTokens()[editingWishId];
+        if (!ownerToken) throw new Error(labels.wishOwnerError);
+        const fallbackItem = lanterns.find(item => String(item.id) === editingWishId) || shareWish;
+        if (!fallbackItem) throw new Error(labels.wishOwnerError);
+        const savedWish = await requestApi(`/api/wishes/${encodeURIComponent(editingWishId)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'X-Wish-Owner-Token': ownerToken },
+          body: JSON.stringify({ sender_name: name, wish_text: wish, customization })
+        });
+        syncEditedWish(savedWish, fallbackItem);
+        return;
+      }
+
+      const ownerToken = makeWishOwnerToken();
       const savedWish = await requestApi('/api/wishes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -875,20 +1067,29 @@ function App() {
           item_type: 'lantern',
           sender_name: name,
           wish_text: wish,
-          customization
+          customization,
+          owner_token: ownerToken
         })
       });
-      rememberWish(savedWish.id);
-      const releaseSize = stats.lanterns === 0 ? 'large' : 'small';
+      rememberWish(savedWish.id, ownerToken);
+      const releaseSize = 'large';
       const item = {
         ...createFloatingWish(savedWish, 0, true),
         phase: 'large',
         releaseSize,
         isMine: true,
-        topOff: getLanternSpawnPosition(releaseSize === 'large', true),
+        firstRelease: true,
+        topOff: getLanternCenterPosition(true),
         xPosition: 50
       };
       setLanterns(current => [item, ...current.filter(existing => !existing.retiring)].slice(0, 50));
+      setActiveWishActions(current => [...current, {
+        id: item.id,
+        form: item.form,
+        name: item.name,
+        wish: item.wish,
+        customization: item.customization
+      }]);
       setFocusedWishId(String(item.id));
       window.clearTimeout(focusTimeoutRef.current);
       focusTimeoutRef.current = window.setTimeout(() => setFocusedWishId(null), 6000);
@@ -906,17 +1107,44 @@ function App() {
   };
 
   const handleToggleForm = () => {
-    setShowForm(!showForm);
+    if (showForm) {
+      setShowForm(false);
+      setEditingWishId(null);
+    } else {
+      setEditingWishId(null);
+      setShowForm(true);
+    }
   };
 
   const handleToggleKrathongForm = () => {
-    setShowKrathongForm(!showKrathongForm);
+    if (showKrathongForm) {
+      setShowKrathongForm(false);
+      setEditingWishId(null);
+    } else {
+      setEditingWishId(null);
+      setShowKrathongForm(true);
+    }
   };
 
   const handleCreateKrathong = async (name, wish, customization = {}) => {
     setSubmitting(true);
     setSubmissionError('');
     try {
+      if (editingWishId) {
+        const ownerToken = readWishOwnerTokens()[editingWishId];
+        if (!ownerToken) throw new Error(labels.wishOwnerError);
+        const fallbackItem = krathongs.find(item => String(item.id) === editingWishId) || shareWish;
+        if (!fallbackItem) throw new Error(labels.wishOwnerError);
+        const savedWish = await requestApi(`/api/wishes/${encodeURIComponent(editingWishId)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'X-Wish-Owner-Token': ownerToken },
+          body: JSON.stringify({ sender_name: name, wish_text: wish, customization })
+        });
+        syncEditedWish(savedWish, fallbackItem);
+        return;
+      }
+
+      const ownerToken = makeWishOwnerToken();
       const savedWish = await requestApi('/api/wishes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -924,17 +1152,27 @@ function App() {
           item_type: 'krathong',
           sender_name: name,
           wish_text: wish,
-          customization
+          customization,
+          owner_token: ownerToken
         })
       });
-      rememberWish(savedWish.id);
+      rememberWish(savedWish.id, ownerToken);
       const item = {
         ...createFloatingWish(savedWish, 0, true),
         phase: 'new',
         isMine: true,
-        xPosition: 50
+        firstRelease: true,
+        xPosition: 50,
+        topOff: getRiverCenterY(82)
       };
       setKrathongs(current => [item, ...current.filter(existing => !existing.retiring)].slice(0, 50));
+      setActiveWishActions(current => [...current, {
+        id: item.id,
+        form: item.form,
+        name: item.name,
+        wish: item.wish,
+        customization: item.customization
+      }]);
       setFocusedWishId(String(item.id));
       window.clearTimeout(focusTimeoutRef.current);
       focusTimeoutRef.current = window.setTimeout(() => setFocusedWishId(null), 6000);
@@ -951,6 +1189,72 @@ function App() {
     }
   };
 
+  const handleDeleteWish = async (item) => {
+    const wishId = String(item.id);
+    const ownerToken = readWishOwnerTokens()[wishId];
+    if (!ownerToken) {
+      setSubmissionError(labels.wishOwnerError);
+      return;
+    }
+
+    setSubmitting(true);
+    setSubmissionError('');
+    try {
+      await requestApi(`/api/wishes/${encodeURIComponent(wishId)}`, {
+        method: 'DELETE',
+        headers: { 'X-Wish-Owner-Token': ownerToken }
+      });
+      setLanterns(current => current.filter(existing => String(existing.id) !== wishId));
+      setKrathongs(current => current.filter(existing => String(existing.id) !== wishId));
+      setActiveWishActions(current => current.filter(action => String(action.id) !== wishId));
+      setShareWish(null);
+      setConfirmDeleteWishId(null);
+      forgetWishOwnerToken(wishId);
+
+      const nextIds = readTrackedWishIds().filter(id => id !== wishId);
+      setMineWishIds(nextIds);
+      try {
+        localStorage.setItem(TRACKED_WISHES_KEY, JSON.stringify(nextIds));
+        if (localStorage.getItem(LATEST_WISH_ID_KEY) === wishId) {
+          if (nextIds.length) localStorage.setItem(LATEST_WISH_ID_KEY, nextIds[0]);
+          else localStorage.removeItem(LATEST_WISH_ID_KEY);
+        }
+      } catch (error) {
+        setApiError(`The wish was deleted, but could not be removed from this device's saved wishes: ${error.message}`);
+      }
+
+      setEditingWishId(null);
+      if (item.form === 'lantern') {
+        setFormData({
+          name: item.name,
+          wish: item.wish,
+          form: 'lantern',
+          style: item.customization?.style || 'traditional',
+          glow: item.customization?.glow || 'gold'
+        });
+        setShowKrathongForm(false);
+        setShowForm(true);
+      } else {
+        setKrathongFormData({
+          name: item.name,
+          wish: item.wish,
+          form: 'krathong',
+          base: item.customization?.base || 'banana',
+          candle: item.customization?.candle || 'gold',
+          incense: item.customization?.incense || 'classic',
+          accent: item.customization?.accent || 'pink'
+        });
+        setShowForm(false);
+        setShowKrathongForm(true);
+      }
+      refreshWishes().catch(error => setApiError(error.message));
+    } catch (error) {
+      setSubmissionError(error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const festivalItems = [
     ...lanterns.filter(lantern => !lantern.hidden),
     ...krathongs
@@ -958,6 +1262,11 @@ function App() {
   const lanternItems = festivalItems.filter(item => item.form === 'lantern');
   const krathongItems = festivalItems.filter(item => item.form === 'krathong');
   const activeFindWishHighlights = Array.isArray(findWishAnimation) ? findWishAnimation : [];
+  const activeLanternActions = activeWishActions.filter(action => action.form === 'lantern').length;
+  const activeKrathongActions = activeWishActions.filter(action => action.form === 'krathong').length;
+  const shareWishCanBeEdited = shareWish
+    ? activeWishActions.some(action => String(action.id) === String(shareWish.id))
+    : false;
 
   const renderFestivalItem = (item) => {
     if (item.form === 'krathong') {
@@ -1187,14 +1496,18 @@ function App() {
             <img src={`${import.meta.env.BASE_URL}images/bridge.png`} alt="" />
           </div>
           {mineWishIds.length > 0 && (
-            <button
-              type="button"
-              className="find-wish-button"
-              onClick={handleFindMyWish}
-            >
-              <span aria-hidden="true">✧</span>
-              {labels.findMyWish}
-            </button>
+            <>
+              {showFindWishCue && <p className="find-wish-helper" role="status">{labels.findWishHint}</p>}
+              <button
+                type="button"
+                className={`find-wish-button${showFindWishCue ? ' is-spotlight' : ''}`}
+                onClick={handleFindMyWish}
+              >
+                <span aria-hidden="true">✧</span>
+                {labels.findMyWish}
+                {showFindWishCue && <span className="find-wish-cue-arrow" aria-hidden="true">↑</span>}
+              </button>
+            </>
           )}
           <div className="start-buttons">
             <button
@@ -1226,6 +1539,7 @@ function App() {
                 language={language}
                 submitting={submitting}
                 error={submissionError}
+                isEditing={Boolean(editingWishId)}
               />
             </div>
         </Popup>
@@ -1241,11 +1555,12 @@ function App() {
                 language={language}
                 submitting={submitting}
                 error={submissionError}
+                isEditing={Boolean(editingWishId)}
               />
             </div>
         </Popup>
 
-        <Popup show={Boolean(shareWish)} onClose={() => setShareWish(null)} className="lantern-form-overlay share-overlay">
+        <Popup show={Boolean(shareWish)} onClose={closeShareWish} className="lantern-form-overlay share-overlay">
           {shareWish && (
             <section
               className="share-wish-card"
@@ -1257,7 +1572,7 @@ function App() {
                 type="button"
                 className="share-close"
                 aria-label={labels.closeModal}
-                onClick={() => setShareWish(null)}
+                onClick={closeShareWish}
               >×</button>
               <div className="share-mini-preview" aria-hidden="true">
                 {shareWish.form === 'lantern' ? '🏮' : '🪷'}
@@ -1274,6 +1589,38 @@ function App() {
                   {copiedLink ? labels.copied : labels.copyLink}
                 </button>
               </div>
+              {shareWishCanBeEdited && (
+                <div className="wish-edit-window">
+                  <p className="wish-submitted-message">{labels.wishSubmitted}</p>
+                  <p className="wish-edit-window-type">
+                    {shareWish.form === 'lantern' ? labels.lanternShareType : labels.krathongShareType}
+                  </p>
+                  <p className="wish-edit-window-intro">{labels.wishActionIntro}</p>
+                  <div className="wish-edit-window-counts">
+                    {activeLanternActions > 0 && (
+                      <span>{labels.lanternActionCount.replace('{count}', String(activeLanternActions))}</span>
+                    )}
+                    {activeKrathongActions > 0 && (
+                      <span>{labels.krathongActionCount.replace('{count}', String(activeKrathongActions))}</span>
+                    )}
+                  </div>
+                  <div className="wish-edit-actions">
+                    {confirmDeleteWishId === String(shareWish.id) ? (
+                      <>
+                        <span className="wish-delete-confirm">{labels.confirmDeleteWish}</span>
+                        <button type="button" className="wish-delete-button" disabled={submitting} onClick={() => handleDeleteWish(shareWish)}>{labels.deleteWish}</button>
+                        <button type="button" className="wish-keep-button" disabled={submitting} onClick={() => setConfirmDeleteWishId(null)}>{labels.keepWish}</button>
+                      </>
+                    ) : (
+                      <>
+                        <button type="button" className="wish-edit-button" onClick={() => openWishEditor(shareWish)}>{labels.editWish}</button>
+                        <button type="button" className="wish-delete-button" onClick={() => setConfirmDeleteWishId(String(shareWish.id))}>{labels.undoDeleteWish}</button>
+                      </>
+                    )}
+                  </div>
+                  {submissionError && <p className="wish-action-error" role="alert">{submissionError}</p>}
+                </div>
+              )}
               <button
                 type="button"
                 className="share-own-wish"

@@ -1,19 +1,21 @@
+import hashlib
 import html
 import json
 import os
+import secrets
 from contextlib import asynccontextmanager
 from typing import Literal, Optional
 from urllib.parse import quote, urljoin
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from database import init_db, pool
-from models import WishCreate, WishResponse, WishStats
+from models import WishCreate, WishResponse, WishStats, WishUpdate
 
 
 @asynccontextmanager
@@ -48,7 +50,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -170,12 +172,13 @@ async def wish_preview(wish_id: str, request: Request):
 
 @app.post("/api/wishes", response_model=WishResponse, status_code=201)
 async def create_wish(payload: WishCreate):
+    owner_token_hash = hashlib.sha256(payload.owner_token.encode("utf-8")).hexdigest()
     async with pool.connection() as conn:
         async with conn.cursor(row_factory=dict_row) as cur:
             await cur.execute(
                 """
-                INSERT INTO wishes (item_type, sender_name, wish_text, customization)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO wishes (item_type, sender_name, wish_text, customization, owner_token_hash)
+                VALUES (%s, %s, %s, %s, %s)
                 RETURNING id, item_type, sender_name, wish_text, customization, created_at
                 """,
                 (
@@ -183,11 +186,69 @@ async def create_wish(payload: WishCreate):
                     payload.sender_name,
                     payload.wish_text,
                     Jsonb(payload.customization),
+                    owner_token_hash,
                 ),
             )
             row = await cur.fetchone()
         await conn.commit()
         return row
+
+
+async def require_wish_owner(cur, wish_id: UUID, owner_token: str | None) -> None:
+    if not owner_token:
+        raise HTTPException(status_code=403, detail="A valid wish ownership token is required")
+    await cur.execute(
+        "SELECT owner_token_hash FROM wishes WHERE id = %s FOR UPDATE",
+        (wish_id,),
+    )
+    row = await cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Wish not found")
+    expected_hash = row["owner_token_hash"]
+    provided_hash = hashlib.sha256(owner_token.encode("utf-8")).hexdigest()
+    if not expected_hash or not secrets.compare_digest(expected_hash, provided_hash):
+        raise HTTPException(status_code=403, detail="A valid wish ownership token is required")
+
+
+@app.patch("/api/wishes/{wish_id}", response_model=WishResponse)
+async def update_wish(
+    wish_id: UUID,
+    payload: WishUpdate,
+    owner_token: str | None = Header(default=None, alias="X-Wish-Owner-Token"),
+):
+    async with pool.connection() as conn:
+        async with conn.cursor(row_factory=dict_row) as cur:
+            await require_wish_owner(cur, wish_id, owner_token)
+            await cur.execute(
+                """
+                UPDATE wishes
+                SET sender_name = %s, wish_text = %s, customization = %s
+                WHERE id = %s
+                RETURNING id, item_type, sender_name, wish_text, customization, created_at
+                """,
+                (
+                    payload.sender_name,
+                    payload.wish_text,
+                    Jsonb(payload.customization),
+                    wish_id,
+                ),
+            )
+            row = await cur.fetchone()
+        await conn.commit()
+        return row
+
+
+@app.delete("/api/wishes/{wish_id}", status_code=204)
+async def delete_wish(
+    wish_id: UUID,
+    owner_token: str | None = Header(default=None, alias="X-Wish-Owner-Token"),
+):
+    async with pool.connection() as conn:
+        async with conn.cursor(row_factory=dict_row) as cur:
+            await require_wish_owner(cur, wish_id, owner_token)
+            await cur.execute("DELETE FROM wishes WHERE id = %s", (wish_id,))
+        await conn.commit()
+    return Response(status_code=204)
 
 
 @app.get("/api/wishes/{wish_id}", response_model=WishResponse)
