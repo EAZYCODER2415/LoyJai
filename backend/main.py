@@ -1,6 +1,8 @@
+import asyncio
 import hashlib
 import html
 import json
+import logging
 import os
 import secrets
 from contextlib import asynccontextmanager
@@ -11,11 +13,15 @@ from uuid import UUID
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from psycopg import InterfaceError, OperationalError
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from database import init_db, pool
 from models import WishCreate, WishResponse, WishStats, WishUpdate
+
+logger = logging.getLogger(__name__)
+TRANSIENT_DATABASE_ERRORS = (OperationalError, InterfaceError, ConnectionResetError, OSError)
 
 
 @asynccontextmanager
@@ -37,7 +43,10 @@ allowed_origins = [
     )
     if origin
 ]
-frontend_origin = allowed_origins[0] if allowed_origins else "http://localhost:5173"
+frontend_origin = allowed_origins[0] if allowed_origins else os.getenv(
+    "FRONTEND_FALLBACK_ORIGIN",
+    "https://loy-jai.vercel.app",
+)
 if not allowed_origins:
     allowed_origins = [
         "http://localhost:5173",
@@ -103,27 +112,64 @@ async def get_wishes(
             return rows
 
 
+def parse_wish_id(wish_id: str) -> UUID | None:
+    try:
+        return UUID(wish_id)
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+
+def frontend_wish_url(wish_id: UUID) -> str:
+    frontend_base_url = frontend_origin.rstrip("/") + "/"
+    return urljoin(frontend_base_url, f"?wish={quote(str(wish_id))}")
+
+
+async def fetch_wish_by_id(wish_id: UUID):
+    for attempt in range(2):
+        try:
+            async with pool.connection() as conn:
+                async with conn.cursor(row_factory=dict_row) as cur:
+                    await cur.execute(
+                        """
+                        SELECT id, item_type, sender_name, wish_text, customization, created_at
+                        FROM wishes
+                        WHERE id = %s
+                        """,
+                        (wish_id,),
+                    )
+                    return await cur.fetchone()
+        except TRANSIENT_DATABASE_ERRORS as error:
+            if attempt == 0:
+                logger.warning(
+                    "Transient database error fetching wish %s; retrying once",
+                    wish_id,
+                    exc_info=True,
+                )
+                await asyncio.sleep(0.3)
+                continue
+            logger.exception("Database error fetching wish %s after retry", wish_id)
+            raise HTTPException(status_code=503, detail="Wish service is temporarily unavailable") from error
+        except Exception as error:
+            logger.exception("Unexpected database error fetching wish %s", wish_id)
+            raise HTTPException(status_code=503, detail="Wish service is temporarily unavailable") from error
+    return None
+
+
 @app.get("/w/{wish_id}", response_class=HTMLResponse)
 async def wish_preview(wish_id: str, request: Request):
+    wish_uuid = parse_wish_id(wish_id)
+    if wish_uuid is None:
+        return JSONResponse({"detail": "Wish not found"}, status_code=404)
+
     try:
-        wish_uuid = UUID(wish_id)
-    except ValueError:
-        return RedirectResponse(frontend_origin + "/", status_code=302)
+        wish = await fetch_wish_by_id(wish_uuid)
+    except HTTPException as error:
+        if error.status_code != 503:
+            raise
+        return RedirectResponse(frontend_wish_url(wish_uuid), status_code=307)
 
-    async with pool.connection() as conn:
-        async with conn.cursor(row_factory=dict_row) as cur:
-            await cur.execute(
-                """
-                SELECT id, item_type, sender_name, wish_text
-                FROM wishes
-                WHERE id = %s
-                """,
-                (wish_uuid,),
-            )
-            wish = await cur.fetchone()
-
-    if not wish:
-        return RedirectResponse(frontend_origin + "/", status_code=302)
+    if wish is None:
+        return JSONResponse({"detail": "Wish not found"}, status_code=404)
 
     sender = html.escape(wish["sender_name"], quote=True)
     wish_text = html.escape(wish["wish_text"], quote=True)
@@ -252,21 +298,14 @@ async def delete_wish(
 
 
 @app.get("/api/wishes/{wish_id}", response_model=WishResponse)
-async def get_single_wish(wish_id: UUID):
-    async with pool.connection() as conn:
-        async with conn.cursor(row_factory=dict_row) as cur:
-            await cur.execute(
-                """
-                SELECT id, item_type, sender_name, wish_text, customization, created_at
-                FROM wishes
-                WHERE id = %s
-                """,
-                (wish_id,),
-            )
-            row = await cur.fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="Wish not found")
-            return row
+async def get_single_wish(wish_id: str):
+    wish_uuid = parse_wish_id(wish_id)
+    if wish_uuid is None:
+        raise HTTPException(status_code=404, detail="Wish not found")
+    wish = await fetch_wish_by_id(wish_uuid)
+    if wish is None:
+        raise HTTPException(status_code=404, detail="Wish not found")
+    return wish
 
 
 @app.get("/api/stats", response_model=WishStats)

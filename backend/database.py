@@ -13,6 +13,8 @@ pool = AsyncConnectionPool(
     conninfo=DATABASE_URL,
     min_size=1,
     max_size=10,
+    max_lifetime=240,
+    check=AsyncConnectionPool.check_connection,
     open=False,
 )
 

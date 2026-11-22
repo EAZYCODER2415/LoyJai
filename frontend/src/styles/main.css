@@ -73,6 +73,36 @@ body {
     animation: wish-loading-spin 850ms linear infinite;
 }
 
+.shared-wish-loading {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: max-content;
+    max-width: min(90vw, 380px);
+    padding: 14px 18px;
+    border: 1px solid rgba(255, 228, 166, .3);
+    border-radius: 16px;
+    background: rgba(8, 24, 37, .88);
+    color: #fff3d4;
+    font-size: .9rem;
+    text-align: center;
+    box-shadow: 0 10px 32px rgba(0, 0, 0, .28);
+    transform: translate(-50%, -50%);
+    backdrop-filter: blur(10px);
+}
+
+.shared-wish-loading .wish-loading-spinner {
+    flex: 0 0 24px;
+    width: 24px;
+    height: 24px;
+    border-width: 3px;
+}
+
 @keyframes wish-loading-spin {
     to { transform: rotate(360deg); }
 }

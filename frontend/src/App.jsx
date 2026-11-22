@@ -20,7 +20,7 @@ import {
 } from './sceneBounds.js';
 const backgroundTrack = `${import.meta.env.BASE_URL}assets/loy-krathong.mp3`;
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
-const SHARE_BASE_URL = (import.meta.env.VITE_SHARE_BASE_URL || API_BASE_URL).replace(/\/+$/, '');
+const SHARE_BASE_URL = (import.meta.env.VITE_SHARE_BASE_URL || window.location.origin).replace(/\/+$/, '');
 const TRACKED_WISHES_KEY = 'loyJaiMyWishIds';
 const WISH_OWNER_TOKENS_KEY = 'loyJaiWishOwnerTokens';
 const LATEST_WISH_ID_KEY = 'loyJaiLatestWishId';
@@ -41,7 +41,9 @@ const requestApi = async (path, options) => {
   const response = await fetch(`${API_BASE_URL}${path}`, options);
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.detail || `API request failed (${response.status}).`);
+    const error = new Error(body?.detail || `API request failed (${response.status}).`);
+    error.status = response.status;
+    throw error;
   }
   if (response.status === 204) return null;
   return response.json();
@@ -201,6 +203,8 @@ const copy = {
     lanternEditFormTitle: 'Edit your lantern wish',
     krathongEditFormTitle: 'Edit your krathong wish',
     wishNotVisible: 'Your wish is not on screen right now. Try again in a little while.',
+    sharedWishLoading: 'Opening this wish...',
+    sharedWishUnavailable: 'Wish not found or still loading. You can still explore the river.',
     guideTitle: 'Welcome to Loy Jai',
     guideBody: 'Release a lantern into the sky or float a krathong on the river. Tap any light or wish to read and share it. You can begin right away.',
     skip: 'Skip',
@@ -289,6 +293,8 @@ const copy = {
     lanternEditFormTitle: 'แก้ไขคำอธิษฐานบนโคมลอย',
     krathongEditFormTitle: 'แก้ไขคำอธิษฐานบนกระทง',
     wishNotVisible: 'ตอนนี้คำอธิษฐานของคุณไม่อยู่บนหน้าจอ ลองค้นหาอีกครั้งในอีกสักครู่',
+    sharedWishLoading: 'กำลังเปิดคำอธิษฐานนี้...',
+    sharedWishUnavailable: 'ไม่พบคำอธิษฐานหรือระบบกำลังโหลดอยู่ คุณยังชมสายน้ำต่อได้',
     guideTitle: 'ยินดีต้อนรับสู่ลอยใจ',
     guideBody: 'ปล่อยโคมลอยสู่ท้องฟ้าหรือลอยกระทงไปตามสายน้ำ แตะแสงหรือคำอธิษฐานเพื่ออ่านและแชร์ แล้วเริ่มส่งคำอธิษฐานได้เลย',
     skip: 'ข้าม',
@@ -379,6 +385,8 @@ const copy = {
     lanternEditFormTitle: '编辑天灯愿望',
     krathongEditFormTitle: '编辑水灯愿望',
     wishNotVisible: '你的愿望目前不在屏幕上，请稍后再试。',
+    sharedWishLoading: '正在打开这份愿望...',
+    sharedWishUnavailable: '未找到愿望或仍在加载中。你可以继续欣赏这条许愿河。',
     guideTitle: '欢迎来到 Loy Jai',
     guideBody: '放飞一盏天灯，或在河上漂放一盏水灯。点击任意灯光或愿望即可阅读和分享。现在就可以开始。',
     skip: '跳过',
@@ -558,6 +566,8 @@ function App() {
   const [hasLoadedWishes, setHasLoadedWishes] = useState(false);
   const [wishLoadingCaptionIndex, setWishLoadingCaptionIndex] = useState(0);
   const [historyRevision, setHistoryRevision] = useState(0);
+  const [sharedWishLoading, setSharedWishLoading] = useState(false);
+  const [sharedWishStatus, setSharedWishStatus] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(() => {
     const savedPreference = localStorage.getItem('soundEnabled');
     return savedPreference === 'true';
@@ -579,6 +589,7 @@ function App() {
   const nextCelebrationId = useRef(0);
   const focusTimeoutRef = useRef(null);
   const findWishStatusTimeoutRef = useRef(null);
+  const sharedWishRetryTimeoutRef = useRef(null);
   const findWishCueTimeoutRef = useRef(null);
   const findWishAnimationIdRef = useRef(0);
   const languageRef = useRef(null);
@@ -593,6 +604,7 @@ function App() {
     window.clearTimeout(focusTimeoutRef.current);
     window.clearTimeout(findWishStatusTimeoutRef.current);
     window.clearTimeout(findWishCueTimeoutRef.current);
+    window.clearTimeout(sharedWishRetryTimeoutRef.current);
   }, []);
 
   useEffect(() => {
@@ -799,13 +811,32 @@ function App() {
     if (!wishId) {
       setShareWish(null);
       setFocusedWishId(null);
+      setSharedWishLoading(false);
+      setSharedWishStatus('');
       return undefined;
     }
 
     let active = true;
     setShareWish(null);
-    requestApi(`/api/wishes/${encodeURIComponent(wishId)}`)
-      .then(wish => {
+    setSharedWishLoading(true);
+    setSharedWishStatus('');
+    const loadSharedWish = async () => {
+      try {
+        let wish;
+        try {
+          wish = await requestApi(`/api/wishes/${encodeURIComponent(wishId)}`);
+        } catch (error) {
+          const isTransient = error.status == null || [500, 502, 503].includes(error.status);
+          if (!isTransient) throw error;
+
+          await new Promise(resolve => {
+            sharedWishRetryTimeoutRef.current = window.setTimeout(resolve, 1000);
+          });
+          sharedWishRetryTimeoutRef.current = null;
+          if (!active) return;
+          wish = await requestApi(`/api/wishes/${encodeURIComponent(wishId)}`);
+        }
+
         if (!active) return;
         const featured = createFloatingWish(wish, 0, true);
         setFocusedWishId(String(featured.id));
@@ -815,14 +846,23 @@ function App() {
           setKrathongs(current => [featured, ...current.filter(item => String(item.id) !== String(featured.id))].slice(0, 50));
         }
         setShareWish(featured);
-      })
-      .catch(error => {
-        if (active) setApiError(error.message);
-      });
+        setSharedWishStatus('');
+      } catch {
+        if (active) {
+          setShareWish(null);
+          setHasLoadedWishes(true);
+          setSharedWishStatus(labels.sharedWishUnavailable);
+        }
+      } finally {
+        if (active) setSharedWishLoading(false);
+      }
+    };
+    loadSharedWish();
     return () => {
       active = false;
+      window.clearTimeout(sharedWishRetryTimeoutRef.current);
     };
-  }, [historyRevision]);
+  }, [historyRevision, labels.sharedWishUnavailable]);
 
   useEffect(() => {
     const closeMenu = (event) => {
@@ -1291,16 +1331,7 @@ function App() {
 
   const getShareUrl = (item) => {
     if (!item.id) throw new Error('This wish has no shareable ID.');
-    return SHARE_BASE_URL
-      ? `${SHARE_BASE_URL}/w/${encodeURIComponent(item.id)}`
-      : getFallbackShareUrl(item);
-  };
-
-  const getFallbackShareUrl = (item) => {
-    if (!item.id) throw new Error('This wish has no shareable ID.');
-    const url = new URL(window.location.origin);
-    url.searchParams.set('wish', item.id);
-    return url.toString();
+    return `${SHARE_BASE_URL}/w/${encodeURIComponent(item.id)}`;
   };
 
   const getShareCaption = (item) => {
@@ -1745,6 +1776,17 @@ function App() {
         {findWishStatus && (
           <div className="wish-find-status" role="status" aria-live="polite">
             {findWishStatus}
+          </div>
+        )}
+        {sharedWishLoading && (
+          <div className="shared-wish-loading" role="status" aria-live="polite">
+            <span className="wish-loading-spinner" aria-hidden="true" />
+            <span>{labels.sharedWishLoading}</span>
+          </div>
+        )}
+        {sharedWishStatus && (
+          <div className="wish-find-status" role="status" aria-live="polite">
+            {sharedWishStatus}
           </div>
         )}
       </main>
