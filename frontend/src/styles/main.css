@@ -920,21 +920,6 @@ div.lantern img { width: 100%; height: auto; }
     animation: find-wish-button-appear 420ms ease-out both, find-wish-button-glow 1.6s ease-in-out 420ms infinite alternate;
 }
 
-.find-wish-helper {
-    width: fit-content;
-    max-width: 100%;
-    margin: 0 auto 8px;
-    padding: 8px 12px;
-    border: 1px solid rgba(255, 224, 160, .45);
-    border-radius: 12px;
-    background: rgba(8, 31, 40, .9);
-    color: #fff3d4;
-    font-size: .75rem;
-    line-height: 1.4;
-    text-align: center;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, .28);
-}
-
 .find-wish-cue-arrow {
     color: #ffd36a;
     font-size: 1rem;
@@ -981,9 +966,9 @@ div.lantern img { width: 100%; height: auto; }
 
 .wish-find-status {
     position: fixed;
-    top: clamp(152px, 21vh, 220px);
+    top: max(96px, env(safe-area-inset-top));
     left: 50%;
-    z-index: 110;
+    z-index: 300;
     width: min(92vw, 460px);
     padding: 12px 18px;
     border: 1px solid rgba(255, 228, 166, .2);

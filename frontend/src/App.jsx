@@ -186,7 +186,6 @@ const copy = {
     fxOff: 'Turn sound effects on',
     help: 'Help',
     findMyWish: 'Find my wish',
-    findWishHint: 'Tap here to highlight your wishes floating in the scene.',
     editWish: 'Edit wish',
     updateWish: 'Save changes',
     savingWish: 'Saving…',
@@ -275,7 +274,6 @@ const copy = {
     fxOff: 'เปิดเสียงเอฟเฟกต์',
     help: 'ช่วยเหลือ',
     findMyWish: 'ค้นหาคำอธิษฐานของฉัน',
-    findWishHint: 'แตะที่นี่เพื่อไฮไลต์คำอธิษฐานของคุณที่กำลังลอยอยู่',
     editWish: 'แก้ไขคำอธิษฐาน',
     updateWish: 'บันทึกการแก้ไข',
     savingWish: 'กำลังบันทึก…',
@@ -366,7 +364,6 @@ const copy = {
     fxOff: '打开音效',
     help: '帮助',
     findMyWish: '找到我的愿望',
-    findWishHint: '点击这里高亮场景中漂浮的愿望。',
     editWish: '编辑愿望',
     updateWish: '保存更改',
     savingWish: '正在保存…',
@@ -1497,7 +1494,6 @@ function App() {
           </div>
           {mineWishIds.length > 0 && (
             <>
-              {showFindWishCue && <p className="find-wish-helper" role="status">{labels.findWishHint}</p>}
               <button
                 type="button"
                 className={`find-wish-button${showFindWishCue ? ' is-spotlight' : ''}`}
