@@ -1,5 +1,6 @@
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const narrowScreenFactor = (width) => clamp((1600 - width) / 1280, 0, 1);
+const lanternNarrowScreenFactor = (width) => clamp((720 - width) / 400, 0, 1);
 
 export const getSkylineHeight = () => Math.min(
   Math.max(408, window.innerWidth * 0.28333),
@@ -21,12 +22,15 @@ export const getLanternDimensions = (large = false) => {
 };
 
 export const getLanternBounds = (itemWidth = 42, itemHeight = 68) => {
-  const skylineHeight = getSkylineHeight();
-  const desiredClearance = 24 + narrowScreenFactor(window.innerWidth) * 220;
-  const availableClearance = Math.max(0, skylineHeight - itemHeight - 16);
+  const skylineBottom = document.querySelector('.background > .top')?.getBoundingClientRect().bottom
+    ?? getSkylineHeight();
+  const widthFactor = lanternNarrowScreenFactor(window.innerWidth);
+  const desiredClearance = 24 + widthFactor * 32;
+  const availableClearance = Math.max(0, skylineBottom - itemHeight - 16);
   const riverbedClearance = Math.min(desiredClearance, availableClearance);
-  const skyBottom = Math.max(0, skylineHeight - itemHeight - riverbedClearance);
-  const skyTop = Math.min(skyBottom, Math.min(72, Math.max(20, skylineHeight * 0.14)));
+  const skyBottom = Math.max(0, skylineBottom - itemHeight - riverbedClearance);
+  const spawnRange = 112 - widthFactor * 80;
+  const skyTop = Math.max(0, skyBottom - spawnRange);
   return {
     minY: skyTop,
     maxY: skyBottom,
