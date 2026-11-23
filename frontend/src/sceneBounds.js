@@ -25,7 +25,7 @@ export const getLanternBounds = (itemWidth = 42, itemHeight = 68) => {
   const skylineBottom = document.querySelector('.background > .top')?.getBoundingClientRect().bottom
     ?? getSkylineHeight();
   const widthFactor = lanternNarrowScreenFactor(window.innerWidth);
-  const desiredClearance = 24 + widthFactor * 64;
+  const desiredClearance = 24 + widthFactor * 96;
   const availableClearance = Math.max(0, skylineBottom - itemHeight - 16);
   const riverbedClearance = Math.min(desiredClearance, availableClearance);
   const skyBottom = Math.max(0, skylineBottom - itemHeight - riverbedClearance);
